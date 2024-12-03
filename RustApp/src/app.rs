@@ -345,7 +345,7 @@ impl Application for AppState {
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
         Subscription::batch([
-            time::every(Duration::from_millis(100)).map(|_| AppMsg::Tick),
+            time::every(Duration::from_millis(10)).map(|_| AppMsg::Tick),
             Subscription::run(|| streamer::sub().map(AppMsg::Streamer)),
         ])
     }

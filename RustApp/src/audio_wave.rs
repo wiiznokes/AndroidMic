@@ -9,17 +9,31 @@ use cosmic::theme;
 use cosmic::widget::canvas::{self, path};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 
-const BUF_SIZE: usize = 1024;
+const BUF_SIZE: usize = 500;
 
 #[derive(Debug)]
 pub struct AudioWave {
     buf: AllocRingBuffer<f32>,
+    max: f32,
+}
+
+#[test]
+fn a() {
+    let mut b = AllocRingBuffer::new(5);
+
+    b.push(5);
+    b.push(6);
+
+    for a in b {
+        println!("{a}")
+    }
 }
 
 impl AudioWave {
     pub fn new() -> Self {
         Self {
             buf: AllocRingBuffer::new(BUF_SIZE),
+            max: 1.,
         }
     }
 
@@ -58,9 +72,16 @@ impl AudioWave {
 
         let mut iter = data.into_iter();
 
-        while let Some(value) = map_to_f32::<B>(&mut iter, format) {
+        if let Some(value) = map_to_f32::<B>(&mut iter, format) {
             self.buf.push(value);
+            if self.max < value.abs() {
+                self.max = value.abs();
+            }
         }
+
+        // while let Some(value) = map_to_f32::<B>(&mut iter, format) {
+        //     self.buf.push(value);
+        // }
     }
 
     pub fn tick(&mut self) {
@@ -82,26 +103,14 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
         let cosmic = theme.cosmic();
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        let top_left = Point::new(
-            frame.center().x - frame.size().width / 2. + 1.,
-            frame.center().y - frame.size().height / 2. + 1.,
-        );
-        let bottom_right = Point::new(
-            frame.center().x + frame.size().width / 2. - 1.,
-            frame.center().y + frame.size().height / 2. - 1.,
-        );
-        let scale = bottom_right - top_left;
+        let top = frame.center().y - frame.size().height / 2. + 1.;
+        let left = frame.center().x - frame.size().width / 2. + 1.;
+        let right = frame.center().x + frame.size().width / 2. - 1.;
+        let bottom = frame.center().y + frame.size().height / 2. - 1.;
 
-        let max_value = if self.autoscale {
-            let max_point = self.points.iter().cloned().fold(0.0, f32::max);
-            if max_point > 0.0 {
-                max_point
-            } else {
-                1.0
-            }
-        } else {
-            1.0
-        };
+        let top_left = Point::new(left, top);
+        let bottom_right = Point::new(right, bottom);
+        let scale = bottom_right - top_left;
 
         // Draw rounded square background
         let bg_square =
@@ -115,74 +124,54 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
             },
         );
 
-        // Draw grid
-        let mut grid_builder = path::Builder::new();
-        let grid_step_x = scale.x / 10.;
-        let grid_step_y = scale.y / 10.;
-        for i in 1..10 {
-            // Vertical
-            let top = Point::new(top_left.x + grid_step_x * i as f32, top_left.y);
-            let bottom = Point::new(top_left.x + grid_step_x * i as f32, bottom_right.y);
-            grid_builder.move_to(top);
-            grid_builder.line_to(bottom);
+        // draw missing line
+        let missing = BUF_SIZE - self.buf.len();
+        let mut no_sound_builder = path::Builder::new();
 
-            // Horizontal
-            let left = Point::new(top_left.x, top_left.y + grid_step_y * i as f32);
-            let right = Point::new(bottom_right.x, top_left.y + grid_step_y * i as f32);
-            grid_builder.move_to(left);
-            grid_builder.line_to(right);
-        }
+        let left_center = Point::new(left, frame.center().y);
+        let end_no_sound: Point = Point::new(
+            left + missing as f32 / BUF_SIZE as f32 * scale.x,
+            frame.center().y,
+        );
+        no_sound_builder.move_to(left_center);
+        no_sound_builder.line_to(end_no_sound);
         frame.stroke(
-            &grid_builder.build(),
+            &no_sound_builder.build(),
             canvas::Stroke {
                 style: canvas::Style::Solid({
-                    let mut half_accent = cosmic.accent_color();
-                    half_accent.alpha = 0.25;
+                    let half_accent = cosmic.accent_color();
                     half_accent.into()
                 }),
+                width: 1.5,
                 ..Default::default()
             },
         );
 
-        // Draw graph
-        let step_length = scale.x / self.steps as f32;
+        // draw sound
         let mut builder = path::Builder::new();
-        let mut shade_builder = path::Builder::new();
-        let mut points = Vec::new();
-        for i in 0..self.points.len() {
-            points.push(Point::new(
-                top_left.x + step_length * i as f32,
-                bottom_right.y - self.points[i] / max_value * scale.y,
-            ));
-        }
-        shade_builder.move_to(Point::new(top_left.x, bottom_right.y));
-        shade_builder.line_to(points[0]);
-        for i in 1..points.len() {
-            let previous_point = points[i - 1];
-            let control_previous =
-                Point::new(previous_point.x + step_length * 0.5, previous_point.y);
-            let point = points[i];
-            let control_current = Point::new(point.x - step_length * 0.5, point.y);
-            builder.move_to(previous_point);
-            builder.bezier_curve_to(control_previous, control_current, point);
-            shade_builder.bezier_curve_to(control_previous, control_current, point);
-        }
-        shade_builder.line_to(bottom_right);
 
-        // Draw the curve
-        frame.stroke(
-            &builder.build(),
-            canvas::Stroke {
-                style: canvas::Style::Solid(cosmic.accent_color().into()),
-                width: 2.0,
-                line_join: canvas::LineJoin::Round,
-                ..Default::default()
-            },
-        );
-
-        // Draw the shading
+        builder.move_to(end_no_sound);
+        for (pos, value) in self.buf.iter().enumerate() {
+            if value.is_sign_positive() {
+                builder.line_to(Point::new(
+                    end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
+                    frame.center().y + value / self.max * scale.y,
+                ));
+            }
+        }
+        builder.line_to(Point::new(right, frame.center().y));
+        for (pos, value) in self.buf.iter().rev().enumerate() {
+            let pos = self.buf.len() - (pos + 1);
+            if value.is_sign_negative() {
+                builder.line_to(Point::new(
+                    end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
+                    frame.center().y + value / self.max * scale.y,
+                ));
+            }
+        }
+        builder.line_to(end_no_sound);
         frame.fill(
-            &shade_builder.build(),
+            &builder.build(),
             canvas::Fill {
                 style: canvas::Style::Solid({
                     let mut half_accent = cosmic.accent_color();
