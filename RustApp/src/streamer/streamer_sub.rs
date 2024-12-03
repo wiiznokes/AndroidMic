@@ -35,6 +35,7 @@ pub enum StreamerCommand {
 pub enum StreamerMsg {
     Status(Status),
     Ready(Sender<StreamerCommand>),
+    Data(Vec<u8>),
 }
 
 async fn send(sender: &mut futures::channel::mpsc::Sender<StreamerMsg>, msg: StreamerMsg) {
@@ -108,9 +109,9 @@ pub fn sub() -> impl Stream<Item = StreamerMsg> {
                     None => todo!(),
                 },
                 Either::Right(res) => match res {
-                    Ok(status) => {
-                        if let Some(status) = status {
-                            send(&mut sender, StreamerMsg::Status(status)).await;
+                    Ok(msg_opt) => {
+                        if let Some(msg) = msg_opt {
+                            send(&mut sender, msg).await;
                         }
                     }
                     Err(connect_error) => {

@@ -4,7 +4,7 @@ use rtrb::Producer;
 
 use crate::{streamer::tcp_streamer, utils};
 
-use super::{tcp_streamer::TcpStreamer, ConnectError, Status, StreamerTrait};
+use super::{tcp_streamer::TcpStreamer, ConnectError, Status, StreamerMsg, StreamerTrait};
 
 pub struct AdbStreamer {
     tcp_streamer: TcpStreamer,
@@ -61,7 +61,7 @@ pub async fn new(producer: Producer<u8>) -> Result<AdbStreamer, ConnectError> {
 }
 
 impl StreamerTrait for AdbStreamer {
-    async fn next(&mut self) -> Result<Option<Status>, ConnectError> {
+    async fn next(&mut self) -> Result<Option<StreamerMsg>, ConnectError> {
         self.tcp_streamer.next().await
     }
 

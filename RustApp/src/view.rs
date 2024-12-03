@@ -44,8 +44,8 @@ fn logs(app: &AppState) -> Element<'_, AppMsg> {
         .into()
 }
 
-fn audio_wave(_app: &AppState) -> Element<'_, AppMsg> {
-    text("audio wave").into()
+fn audio_wave(app: &AppState) -> Element<'_, AppMsg> {
+    cosmic::widget::canvas(&app.audio_wave).into()
 }
 
 fn audio(app: &AppState) -> Element<'_, AppMsg> {

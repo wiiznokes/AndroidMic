@@ -3,15 +3,31 @@ use cosmic::iced::{Point, Rectangle, Renderer};
 use cosmic::iced_widget::canvas::Geometry;
 use cosmic::theme;
 use cosmic::widget::canvas::{self, path};
-use std::collections::VecDeque;
-
 use crate::app::AppMsg;
+use crate::config::AudioFormat;
+
+const BUF_SIZE: usize = 1024;
 
 #[derive(Debug)]
 pub struct AudioWave {
-    pub steps: usize,
-    pub points: VecDeque<f32>,
-    pub autoscale: bool,
+    pub points: [f32; BUF_SIZE],
+}
+
+impl AudioWave {
+    pub fn new() -> Self {
+        Self {
+            points: [0.; BUF_SIZE],
+        }
+    }
+
+    pub fn push(&mut self, data: &[u8], format: &AudioFormat) {
+
+    }
+
+    pub fn tick(&mut self) {
+        
+    }
+
 }
 
 impl canvas::Program<AppMsg, theme::Theme> for AudioWave {

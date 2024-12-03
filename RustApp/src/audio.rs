@@ -36,6 +36,7 @@ impl AppState {
         &self,
         consumer: Consumer<u8>,
     ) -> anyhow::Result<cpal::Stream> {
+
         let Some(device) = &self.audio_device else {
             bail!("no device");
         };
