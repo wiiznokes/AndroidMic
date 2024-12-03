@@ -4,6 +4,10 @@ use std::{
     time::Duration,
 };
 
+use byteordered::{
+    byteorder::{BigEndian, LittleEndian},
+    Endianness,
+};
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     Device, Host,
@@ -244,7 +248,14 @@ impl Application for AppState {
                 },
                 StreamerMsg::Ready(sender) => self.streamer = Some(sender),
                 StreamerMsg::Data(data) => {
-                    self.audio_wave.push(&data, &config.audio_format);
+                    match Endianness::native() {
+                        Endianness::Little => self
+                            .audio_wave
+                            .push::<LittleEndian>(data, &config.audio_format),
+                        Endianness::Big => self
+                            .audio_wave
+                            .push::<BigEndian>(data, &config.audio_format),
+                    };
                 }
             },
             AppMsg::Tick => {

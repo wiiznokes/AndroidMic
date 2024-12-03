@@ -1,5 +1,7 @@
 use crate::app::AppMsg;
 use crate::config::AudioFormat;
+use crate::map_bytes::MapBytes;
+use byteordered::byteorder::ByteOrder;
 use cosmic::iced::mouse::Cursor;
 use cosmic::iced::{Point, Rectangle, Renderer};
 use cosmic::iced_widget::canvas::Geometry;
@@ -14,20 +16,6 @@ pub struct AudioWave {
     buf: AllocRingBuffer<f32>,
 }
 
-#[test]
-fn t() {
-    let mut buf: AllocRingBuffer<i32> = AllocRingBuffer::new(BUF_SIZE);
-
-    buf.push(5);
-    buf.push(6);
-
-    buf.dequeue();
-
-    for e in buf {
-        println!("{e}");
-    }
-}
-
 impl AudioWave {
     pub fn new() -> Self {
         Self {
@@ -35,9 +23,43 @@ impl AudioWave {
         }
     }
 
-    pub fn push(&mut self, data: &[f32]) {
-        for value in data {
-            self.buf.push(*value);
+    pub fn push<B: ByteOrder>(&mut self, data: Vec<u8>, format: &AudioFormat) {
+        #[inline]
+        fn map_to_f32<B>(data: &mut impl Iterator<Item = u8>, format: &AudioFormat) -> Option<f32>
+        where
+            B: ByteOrder,
+        {
+            #[inline]
+            fn map_to_primitive<B, F>(data: &mut impl Iterator<Item = u8>) -> Option<F>
+            where
+                B: ByteOrder,
+                F: MapBytes,
+            {
+                F::map_bytes::<B>(data)
+            }
+
+            match format {
+                AudioFormat::I8 => todo!(),
+                AudioFormat::I16 => map_to_primitive::<B, i16>(data).map(|v| v as f32),
+                AudioFormat::I24 => todo!(),
+                AudioFormat::I32 => todo!(),
+                AudioFormat::I48 => todo!(),
+                AudioFormat::I64 => todo!(),
+                AudioFormat::U8 => todo!(),
+                AudioFormat::U16 => todo!(),
+                AudioFormat::U24 => todo!(),
+                AudioFormat::U32 => todo!(),
+                AudioFormat::U48 => todo!(),
+                AudioFormat::U64 => todo!(),
+                AudioFormat::F32 => todo!(),
+                AudioFormat::F64 => todo!(),
+            }
+        }
+
+        let mut iter = data.into_iter();
+
+        while let Some(value) = map_to_f32::<B>(&mut iter, format) {
+            self.buf.push(value);
         }
     }
 
