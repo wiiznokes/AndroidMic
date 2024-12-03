@@ -1,33 +1,49 @@
+use crate::app::AppMsg;
+use crate::config::AudioFormat;
 use cosmic::iced::mouse::Cursor;
 use cosmic::iced::{Point, Rectangle, Renderer};
 use cosmic::iced_widget::canvas::Geometry;
 use cosmic::theme;
 use cosmic::widget::canvas::{self, path};
-use crate::app::AppMsg;
-use crate::config::AudioFormat;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 
 const BUF_SIZE: usize = 1024;
 
 #[derive(Debug)]
 pub struct AudioWave {
-    pub points: [f32; BUF_SIZE],
+    buf: AllocRingBuffer<f32>,
+}
+
+#[test]
+fn t() {
+    let mut buf: AllocRingBuffer<i32> = AllocRingBuffer::new(BUF_SIZE);
+
+    buf.push(5);
+    buf.push(6);
+
+    buf.dequeue();
+
+    for e in buf {
+        println!("{e}");
+    }
 }
 
 impl AudioWave {
     pub fn new() -> Self {
         Self {
-            points: [0.; BUF_SIZE],
+            buf: AllocRingBuffer::new(BUF_SIZE),
         }
     }
 
-    pub fn push(&mut self, data: &[u8], format: &AudioFormat) {
-
+    pub fn push(&mut self, data: &[f32]) {
+        for value in data {
+            self.buf.push(*value);
+        }
     }
 
     pub fn tick(&mut self) {
-        
+        self.buf.dequeue();
     }
-
 }
 
 impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
