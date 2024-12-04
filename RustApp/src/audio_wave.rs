@@ -101,7 +101,7 @@ impl AudioWave {
             if v.time.wrapping_add(BUF_SIZE as u32) <= self.now {
                 #[allow(clippy::float_equality_without_abs)]
                 if self.max - v.value.abs() < f32::EPSILON {
-                    self.max *= 0.7;
+                    self.max *= 0.9;
                 }
                 self.buf.dequeue();
             }
@@ -164,7 +164,9 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
                             is_current_range_no_sound = false;
                         }
 
-                        let delta_y = value.value.abs() / self.max * 1.1 * scale.y;
+                        // why a factor of 2 doesn't remove the half of the line ???
+                        let delta_y = (value.value.abs() / (self.max * 3.)) * scale.y;
+
                         sound_builder.move_to(Point::new(x, frame.center().y + delta_y));
                         sound_builder.line_to(Point::new(x, frame.center().y - delta_y));
                     }
@@ -191,7 +193,6 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
                         let half_accent = cosmic.accent_color();
                         half_accent.into()
                     }),
-                    // width: 1.5,
                     ..Default::default()
                 },
             );
