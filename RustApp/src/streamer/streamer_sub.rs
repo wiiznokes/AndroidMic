@@ -27,14 +27,18 @@ pub enum ConnectOption {
 pub enum StreamerCommand {
     Connect(ConnectOption, Producer<u8>),
     ChangeBuff(Producer<u8>),
+    GetSample,
     Stop,
 }
+
+pub const SIZE_SAMPLE: usize = 4;
 
 /// Streamer -> App
 #[derive(Debug, Clone)]
 pub enum StreamerMsg {
     Status(Status),
     Ready(Sender<StreamerCommand>),
+    Data([u8; SIZE_SAMPLE]),
 }
 
 async fn send(sender: &mut futures::channel::mpsc::Sender<StreamerMsg>, msg: StreamerMsg) {
@@ -104,13 +108,16 @@ pub fn sub() -> impl Stream<Item = StreamerMsg> {
                         StreamerCommand::Stop => {
                             streamer = DummyStreamer::new();
                         }
+                        StreamerCommand::GetSample => {
+                            streamer.get_sample();
+                        }
                     },
                     None => todo!(),
                 },
                 Either::Right(res) => match res {
-                    Ok(status) => {
-                        if let Some(status) = status {
-                            send(&mut sender, StreamerMsg::Status(status)).await;
+                    Ok(msg_opt) => {
+                        if let Some(msg) = msg_opt {
+                            send(&mut sender, msg).await;
                         }
                     }
                     Err(connect_error) => {

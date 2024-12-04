@@ -3,6 +3,10 @@ use std::{
     path::Path,
 };
 
+use byteordered::{
+    byteorder::{BigEndian, LittleEndian},
+    Endianness,
+};
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     Device, Host,
@@ -14,12 +18,13 @@ use tokio::sync::mpsc::Sender;
 use cosmic::{
     app::{Core, Settings, Task},
     executor,
-    iced::{futures::StreamExt, window, Size, Subscription},
+    iced::{futures::StreamExt, time, window, Size, Subscription},
     iced_runtime::Action,
     Application, Element,
 };
 
 use crate::{
+    audio_wave::{self, AudioWave},
     config::{AudioFormat, ChannelCount, Config, ConnectionMode, SampleRate},
     fl,
     streamer::{self, ConnectOption, Status, StreamerCommand, StreamerMsg},
@@ -91,6 +96,7 @@ pub struct AppState {
     pub state: State,
     pub advanced_window: Option<AdvancedWindow>,
     pub logs: String,
+    pub audio_wave: AudioWave,
 }
 
 pub struct AdvancedWindow {
@@ -108,6 +114,7 @@ pub enum AppMsg {
     ChangeSampleRate(SampleRate),
     ChangeChannelCount(ChannelCount),
     ChangeAudioFormat(AudioFormat),
+    Tick,
 }
 
 impl AppState {
@@ -208,13 +215,14 @@ impl Application for AppState {
             state: State::Default,
             advanced_window: None,
             logs: String::new(),
+            audio_wave: AudioWave::new(),
         };
 
         (app, Task::none())
     }
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
-        let settings = self.config.data();
+        let config = self.config.data();
 
         match message {
             AppMsg::ChangeConnectionMode(connection_mode) => {
@@ -238,7 +246,23 @@ impl Application for AppState {
                     }
                 },
                 StreamerMsg::Ready(sender) => self.streamer = Some(sender),
+                StreamerMsg::Data(data) => {
+                    match Endianness::native() {
+                        Endianness::Little => self
+                            .audio_wave
+                            .push::<LittleEndian>(data.into_iter(), &config.audio_format),
+                        Endianness::Big => self
+                            .audio_wave
+                            .push::<BigEndian>(data.into_iter(), &config.audio_format),
+                    };
+                }
             },
+            AppMsg::Tick => {
+                if matches!(self.state, State::Connected) {
+                    self.send_command(StreamerCommand::GetSample);
+                }
+                self.audio_wave.tick();
+            }
             AppMsg::Device(audio_device) => {
                 self.audio_device = Some(audio_device.device.clone());
                 self.config
@@ -249,12 +273,12 @@ impl Application for AppState {
                 self.state = State::WaitingOnStatus;
                 let (producer, consumer) = RingBuffer::<u8>::new(SHARED_BUF_SIZE);
 
-                let connect_option = match settings.connection_mode {
+                let connect_option = match config.connection_mode {
                     ConnectionMode::Tcp => ConnectOption::Tcp {
-                        ip: settings.ip.unwrap_or(local_ip().unwrap()),
+                        ip: config.ip.unwrap_or(local_ip().unwrap()),
                     },
                     ConnectionMode::Udp => ConnectOption::Udp {
-                        ip: settings.ip.unwrap_or(local_ip().unwrap()),
+                        ip: config.ip.unwrap_or(local_ip().unwrap()),
                     },
                     ConnectionMode::Adb => ConnectOption::Adb,
                 };
@@ -322,6 +346,9 @@ impl Application for AppState {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        Subscription::run(|| streamer::sub().map(AppMsg::Streamer))
+        Subscription::batch([
+            time::every(audio_wave::CYCLE_TIME / audio_wave::BUF_SIZE as u32).map(|_| AppMsg::Tick),
+            Subscription::run(|| streamer::sub().map(AppMsg::Streamer)),
+        ])
     }
 }

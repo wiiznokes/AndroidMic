@@ -1,17 +1,138 @@
+use std::time::Duration;
+
+use crate::app::AppMsg;
+use crate::config::AudioFormat;
+use crate::map_bytes::MapBytes;
+use byteordered::byteorder::ByteOrder;
 use cosmic::iced::mouse::Cursor;
 use cosmic::iced::{Point, Rectangle, Renderer};
 use cosmic::iced_widget::canvas::Geometry;
 use cosmic::theme;
 use cosmic::widget::canvas::{self, path};
-use std::collections::VecDeque;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 
-use crate::app::AppMsg;
+pub const BUF_SIZE: usize = 200;
+pub const CYCLE_TIME: Duration = Duration::from_millis(3500);
+
+#[derive(Debug, Clone)]
+struct Value {
+    time: u64,
+    value: f32,
+}
+
+impl Value {
+    fn default_max(now: u64) -> Self {
+        Self {
+            time: now,
+            value: 3.,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct AudioWave {
-    pub steps: usize,
-    pub points: VecDeque<f32>,
-    pub autoscale: bool,
+    now: u64,
+    buf: AllocRingBuffer<Value>,
+    max: Value,
+}
+
+#[test]
+fn a() {
+    let mut b = AllocRingBuffer::new(5);
+
+    b.push(5);
+    b.push(6);
+
+    for a in b {
+        println!("{a}")
+    }
+}
+
+impl AudioWave {
+    pub fn new() -> Self {
+        Self {
+            buf: AllocRingBuffer::new(BUF_SIZE),
+            max: Value::default_max(0),
+            now: 0,
+        }
+    }
+
+    pub fn push<B: ByteOrder>(&mut self, data: impl Iterator<Item = u8>, format: &AudioFormat) {
+        #[inline]
+        fn map_to_f32<B>(data: &mut impl Iterator<Item = u8>, format: &AudioFormat) -> Option<f32>
+        where
+            B: ByteOrder,
+        {
+            #[inline]
+            fn map_to_primitive<B, F>(data: &mut impl Iterator<Item = u8>) -> Option<F>
+            where
+                B: ByteOrder,
+                F: MapBytes,
+            {
+                F::map_bytes::<B>(data)
+            }
+
+            match format {
+                AudioFormat::I8 => todo!(),
+                AudioFormat::I16 => map_to_primitive::<B, i16>(data).map(|v| v as f32),
+                AudioFormat::I24 => todo!(),
+                AudioFormat::I32 => todo!(),
+                AudioFormat::I48 => todo!(),
+                AudioFormat::I64 => todo!(),
+                AudioFormat::U8 => todo!(),
+                AudioFormat::U16 => todo!(),
+                AudioFormat::U24 => todo!(),
+                AudioFormat::U32 => todo!(),
+                AudioFormat::U48 => todo!(),
+                AudioFormat::U64 => todo!(),
+                AudioFormat::F32 => todo!(),
+                AudioFormat::F64 => todo!(),
+            }
+        }
+
+        let mut iter = data.into_iter();
+
+        if let Some(value) = map_to_f32::<B>(&mut iter, format) {
+            let value = Value {
+                time: self.now,
+                value,
+            };
+
+            if self.max.value < value.value.abs() {
+                self.max = value.clone();
+            }
+
+            self.buf.push(value);
+        }
+    }
+
+    pub fn tick(&mut self) {
+        self.now = self.now.wrapping_add(1);
+
+        if let Some(v) = self.buf.front() {
+            if v.time.wrapping_add(BUF_SIZE as u64) <= self.now {
+                #[allow(clippy::float_equality_without_abs)]
+                if self.max.value - v.value.abs() < f32::EPSILON
+                    && self.max.value - v.value.abs() > self.max.value * 0.9
+                {
+                    self.max = Value {
+                        time: self.now,
+                        value: self.max.value * 0.9,
+                    };
+                } else {
+                    if self.max.time.wrapping_add(BUF_SIZE as u64) <= self.now {
+                        self.max = Value {
+                            time: self.now,
+                            value: (self.max.value * 0.95).max(1.),
+                        };
+                    }
+                }
+                self.buf.dequeue();
+            }
+        } else {
+            self.max = Value::default_max(self.now)
+        }
+    }
 }
 
 impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
@@ -28,116 +149,91 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
         let cosmic = theme.cosmic();
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        let top_left = Point::new(
-            frame.center().x - frame.size().width / 2. + 1.,
-            frame.center().y - frame.size().height / 2. + 1.,
-        );
-        let bottom_right = Point::new(
-            frame.center().x + frame.size().width / 2. - 1.,
-            frame.center().y + frame.size().height / 2. - 1.,
-        );
+        let top = frame.center().y - frame.size().height / 2. + 1.;
+        let left = frame.center().x - frame.size().width / 2. + 1.;
+        let right = frame.center().x + frame.size().width / 2. - 1.;
+        let bottom = frame.center().y + frame.size().height / 2. - 1.;
+
+        let top_left = Point::new(left, top);
+        let bottom_right = Point::new(right, bottom);
         let scale = bottom_right - top_left;
 
-        let max_value = if self.autoscale {
-            let max_point = self.points.iter().cloned().fold(0.0, f32::max);
-            if max_point > 0.0 {
-                max_point
-            } else {
-                1.0
-            }
-        } else {
-            1.0
-        };
-
         // Draw rounded square background
-        let bg_square =
-            path::Path::rounded_rectangle(top_left, scale.into(), cosmic.radius_xs()[0].into());
-        frame.stroke(
-            &bg_square,
-            canvas::Stroke {
-                style: canvas::Style::Solid(cosmic.accent_color().into()),
-                width: 2.0,
-                ..Default::default()
-            },
-        );
-
-        // Draw grid
-        let mut grid_builder = path::Builder::new();
-        let grid_step_x = scale.x / 10.;
-        let grid_step_y = scale.y / 10.;
-        for i in 1..10 {
-            // Vertical
-            let top = Point::new(top_left.x + grid_step_x * i as f32, top_left.y);
-            let bottom = Point::new(top_left.x + grid_step_x * i as f32, bottom_right.y);
-            grid_builder.move_to(top);
-            grid_builder.line_to(bottom);
-
-            // Horizontal
-            let left = Point::new(top_left.x, top_left.y + grid_step_y * i as f32);
-            let right = Point::new(bottom_right.x, top_left.y + grid_step_y * i as f32);
-            grid_builder.move_to(left);
-            grid_builder.line_to(right);
+        {
+            let bg_square =
+                path::Path::rounded_rectangle(top_left, scale.into(), cosmic.radius_xs()[0].into());
+            frame.stroke(
+                &bg_square,
+                canvas::Stroke {
+                    style: canvas::Style::Solid(cosmic.accent_color().into()),
+                    width: 2.0,
+                    ..Default::default()
+                },
+            );
         }
-        frame.stroke(
-            &grid_builder.build(),
-            canvas::Stroke {
-                style: canvas::Style::Solid({
-                    let mut half_accent = cosmic.accent_color();
-                    half_accent.alpha = 0.25;
-                    half_accent.into()
-                }),
-                ..Default::default()
-            },
-        );
 
-        // Draw graph
-        let step_length = scale.x / self.steps as f32;
-        let mut builder = path::Builder::new();
-        let mut shade_builder = path::Builder::new();
-        let mut points = Vec::new();
-        for i in 0..self.points.len() {
-            points.push(Point::new(
-                top_left.x + step_length * i as f32,
-                bottom_right.y - self.points[i] / max_value * scale.y,
-            ));
+        {
+            let mut no_sound_builder = path::Builder::new();
+            let mut sound_builder = path::Builder::new();
+            // represent the distance from the time
+            // 0 is the most recent value, BUF_SIZE - 1 the oldest
+            let mut i = (BUF_SIZE - 1) as i32;
+            let mut iter = self.buf.iter().peekable();
+            let mut is_current_range_no_sound = false;
+
+            while i >= 0 {
+                match iter.next_if(|value| (self.now - value.time) as i32 == i) {
+                    Some(value) => {
+                        let x = right - i as f32 / BUF_SIZE as f32 * scale.x;
+                        if is_current_range_no_sound {
+                            no_sound_builder.line_to(Point::new(x, frame.center().y));
+                            is_current_range_no_sound = false;
+                        }
+
+                        // why a factor of 2 doesn't remove the half of the line ???
+                        let delta_y = (value.value.abs() / (self.max.value * 1.2)) * scale.y;
+
+                        sound_builder.move_to(Point::new(x, frame.center().y + delta_y));
+                        sound_builder.line_to(Point::new(x, frame.center().y - delta_y));
+                    }
+                    None => {
+                        if !is_current_range_no_sound {
+                            no_sound_builder.move_to(Point::new(
+                                right - i as f32 / BUF_SIZE as f32 * scale.x,
+                                frame.center().y,
+                            ));
+                            is_current_range_no_sound = true;
+                        }
+                    }
+                }
+
+                i -= 1;
+            }
+            if is_current_range_no_sound {
+                no_sound_builder.line_to(Point::new(right, frame.center().y));
+            }
+            frame.stroke(
+                &no_sound_builder.build(),
+                canvas::Stroke {
+                    style: canvas::Style::Solid({
+                        let half_accent = cosmic.accent_color();
+                        half_accent.into()
+                    }),
+                    ..Default::default()
+                },
+            );
+            frame.stroke(
+                &sound_builder.build(),
+                canvas::Stroke {
+                    style: canvas::Style::Solid({
+                        let half_accent = cosmic.accent_color();
+                        half_accent.into()
+                    }),
+                    width: 1.5,
+                    ..Default::default()
+                },
+            );
         }
-        shade_builder.move_to(Point::new(top_left.x, bottom_right.y));
-        shade_builder.line_to(points[0]);
-        for i in 1..points.len() {
-            let previous_point = points[i - 1];
-            let control_previous =
-                Point::new(previous_point.x + step_length * 0.5, previous_point.y);
-            let point = points[i];
-            let control_current = Point::new(point.x - step_length * 0.5, point.y);
-            builder.move_to(previous_point);
-            builder.bezier_curve_to(control_previous, control_current, point);
-            shade_builder.bezier_curve_to(control_previous, control_current, point);
-        }
-        shade_builder.line_to(bottom_right);
-
-        // Draw the curve
-        frame.stroke(
-            &builder.build(),
-            canvas::Stroke {
-                style: canvas::Style::Solid(cosmic.accent_color().into()),
-                width: 2.0,
-                line_join: canvas::LineJoin::Round,
-                ..Default::default()
-            },
-        );
-
-        // Draw the shading
-        frame.fill(
-            &shade_builder.build(),
-            canvas::Fill {
-                style: canvas::Style::Solid({
-                    let mut half_accent = cosmic.accent_color();
-                    half_accent.alpha = 0.25;
-                    half_accent.into()
-                }),
-                ..Default::default()
-            },
-        );
 
         vec![frame.into_geometry()]
     }

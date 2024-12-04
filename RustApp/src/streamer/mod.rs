@@ -43,11 +43,13 @@ trait StreamerTrait {
     /// This method make them behave like a state machine, always reaching the next state. (init -> accepted -> read data -> read data ...).
     ///
     /// A nice benefit of this pattern is that there is no usage of Atomic what so ever.
-    async fn next(&mut self) -> Result<Option<Status>, ConnectError>;
+    async fn next(&mut self) -> Result<Option<StreamerMsg>, ConnectError>;
 
     fn set_buff(&mut self, buff: Producer<u8>);
 
     fn status(&self) -> Option<Status>;
+
+    fn get_sample(&mut self);
 }
 #[allow(clippy::enum_variant_names)]
 #[enum_dispatch(StreamerTrait)]
@@ -101,7 +103,7 @@ impl DummyStreamer {
 }
 
 impl StreamerTrait for DummyStreamer {
-    async fn next(&mut self) -> Result<Option<Status>, ConnectError> {
+    async fn next(&mut self) -> Result<Option<StreamerMsg>, ConnectError> {
         std::future::pending::<()>().await;
         unreachable!()
     }
@@ -111,4 +113,6 @@ impl StreamerTrait for DummyStreamer {
     fn status(&self) -> Option<Status> {
         None
     }
+
+    fn get_sample(&mut self) {}
 }
