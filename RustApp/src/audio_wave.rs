@@ -14,17 +14,26 @@ use ringbuffer::{AllocRingBuffer, RingBuffer};
 pub const BUF_SIZE: usize = 200;
 pub const CYCLE_TIME: Duration = Duration::from_millis(3500);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Value {
-    time: u32,
+    time: u64,
     value: f32,
+}
+
+impl Value {
+    fn default_max(now: u64) -> Self {
+        Self {
+            time: now,
+            value: 3.,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct AudioWave {
-    now: u32,
+    now: u64,
     buf: AllocRingBuffer<Value>,
-    max: f32,
+    max: Value,
 }
 
 #[test]
@@ -43,7 +52,7 @@ impl AudioWave {
     pub fn new() -> Self {
         Self {
             buf: AllocRingBuffer::new(BUF_SIZE),
-            max: 1.,
+            max: Value::default_max(0),
             now: 0,
         }
     }
@@ -84,13 +93,16 @@ impl AudioWave {
         let mut iter = data.into_iter();
 
         if let Some(value) = map_to_f32::<B>(&mut iter, format) {
-            self.buf.push(Value {
+            let value = Value {
                 time: self.now,
                 value,
-            });
-            if self.max < value.abs() {
-                self.max = value.abs();
+            };
+
+            if self.max.value < value.value.abs() {
+                self.max = value.clone();
             }
+
+            self.buf.push(value);
         }
     }
 
@@ -98,13 +110,27 @@ impl AudioWave {
         self.now = self.now.wrapping_add(1);
 
         if let Some(v) = self.buf.front() {
-            if v.time.wrapping_add(BUF_SIZE as u32) <= self.now {
+            if v.time.wrapping_add(BUF_SIZE as u64) <= self.now {
                 #[allow(clippy::float_equality_without_abs)]
-                if self.max - v.value.abs() < f32::EPSILON {
-                    self.max *= 0.9;
+                if self.max.value - v.value.abs() < f32::EPSILON
+                    && self.max.value - v.value.abs() > self.max.value * 0.9
+                {
+                    self.max = Value {
+                        time: self.now,
+                        value: self.max.value * 0.9,
+                    };
+                } else {
+                    if self.max.time.wrapping_add(BUF_SIZE as u64) <= self.now {
+                        self.max = Value {
+                            time: self.now,
+                            value: (self.max.value * 0.95).max(1.),
+                        };
+                    }
                 }
                 self.buf.dequeue();
             }
+        } else {
+            self.max = Value::default_max(self.now)
         }
     }
 }
@@ -165,7 +191,7 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
                         }
 
                         // why a factor of 2 doesn't remove the half of the line ???
-                        let delta_y = (value.value.abs() / (self.max * 3.)) * scale.y;
+                        let delta_y = (value.value.abs() / (self.max.value * 1.2)) * scale.y;
 
                         sound_builder.move_to(Point::new(x, frame.center().y + delta_y));
                         sound_builder.line_to(Point::new(x, frame.center().y - delta_y));
