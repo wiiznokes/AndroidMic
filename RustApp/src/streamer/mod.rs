@@ -81,7 +81,6 @@ enum ConnectError {
 
     #[error(transparent)]
     WriteError(#[from] WriteError),
-
 }
 
 #[derive(Debug, Error)]
@@ -115,7 +114,5 @@ impl StreamerTrait for DummyStreamer {
         None
     }
 
-    fn get_sample(&mut self) {
-        
-    }
+    fn get_sample(&mut self) {}
 }

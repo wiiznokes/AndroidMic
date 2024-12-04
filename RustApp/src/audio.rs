@@ -1,6 +1,6 @@
 use anyhow::bail;
 use byteordered::{
-    byteorder::{self, BigEndian, ByteOrder, LittleEndian},
+    byteorder::{BigEndian, ByteOrder, LittleEndian},
     Endianness,
 };
 use cpal::{

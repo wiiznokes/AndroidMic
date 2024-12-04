@@ -110,7 +110,7 @@ pub fn sub() -> impl Stream<Item = StreamerMsg> {
                         }
                         StreamerCommand::GetSample => {
                             streamer.get_sample();
-                        },
+                        }
                     },
                     None => todo!(),
                 },

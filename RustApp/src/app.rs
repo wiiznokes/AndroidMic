@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     path::Path,
-    time::Duration,
 };
 
 use byteordered::{

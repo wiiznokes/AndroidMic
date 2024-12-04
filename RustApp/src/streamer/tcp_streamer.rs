@@ -174,9 +174,7 @@ impl StreamerTrait for TcpStreamer {
                             self.get_sample = false;
                             let mut sample = [0; SIZE_SAMPLE];
 
-                            for i in 0..SIZE_SAMPLE {
-                                sample[i] = io_buf[i];
-                            }
+                            sample[..SIZE_SAMPLE].copy_from_slice(&io_buf[..SIZE_SAMPLE]);
 
                             Ok(Some(StreamerMsg::Data(sample)))
                         } else {
