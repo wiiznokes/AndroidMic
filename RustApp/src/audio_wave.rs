@@ -99,6 +99,9 @@ impl AudioWave {
 
         if let Some(v) = self.buf.front() {
             if v.time.wrapping_add(BUF_SIZE as u32) <= self.now {
+                if self.max - v.value < f32::EPSILON {
+                    self.max *= 0.7;
+                }
                 self.buf.dequeue();
             }
         }
@@ -141,62 +144,152 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
         );
 
         // draw missing line
-        let missing = BUF_SIZE - self.buf.len();
-        let mut no_sound_builder = path::Builder::new();
+        // let missing = BUF_SIZE - self.buf.len();
+        // let mut no_sound_builder = path::Builder::new();
 
-        let left_center = Point::new(left, frame.center().y);
-        let end_no_sound: Point = Point::new(
-            left + missing as f32 / BUF_SIZE as f32 * scale.x,
-            frame.center().y,
-        );
-        no_sound_builder.move_to(left_center);
-        no_sound_builder.line_to(end_no_sound);
-        frame.stroke(
-            &no_sound_builder.build(),
-            canvas::Stroke {
-                style: canvas::Style::Solid({
-                    let half_accent = cosmic.accent_color();
-                    half_accent.into()
-                }),
-                // width: 1.5,
-                ..Default::default()
-            },
-        );
+        // let left_center = Point::new(left, frame.center().y);
+        // let end_no_sound: Point = Point::new(
+        //     left + missing as f32 / BUF_SIZE as f32 * scale.x,
+        //     frame.center().y,
+        // );
+        // no_sound_builder.move_to(left_center);
+        // no_sound_builder.line_to(end_no_sound);
+        // frame.stroke(
+        //     &no_sound_builder.build(),
+        //     canvas::Stroke {
+        //         style: canvas::Style::Solid({
+        //             let half_accent = cosmic.accent_color();
+        //             half_accent.into()
+        //         }),
+        //         // width: 1.5,
+        //         ..Default::default()
+        //     },
+        // );
+
+        {
+            let mut no_sound_builder = path::Builder::new();
+            let mut sound_builder = path::Builder::new();
+            let mut i = 0;
+            let mut iter = self.buf.iter().rev().peekable();
+            let mut is_current_range_no_sound = false;
+
+            while i < BUF_SIZE {
+                match iter.next_if(|value| (self.now - value.time) as usize == i) {
+                    Some(value) => {
+                        let x = left + i as f32 / BUF_SIZE as f32 * scale.x;
+                        if is_current_range_no_sound {
+                            no_sound_builder.line_to(Point::new(x, frame.center().y));
+                            is_current_range_no_sound = false;
+                        }
+                        sound_builder.move_to(Point::new(
+                            x,
+                            frame.center().y + value.value.abs() / self.max * scale.y,
+                        ));
+                        sound_builder.line_to(Point::new(
+                            x,
+                            frame.center().y - value.value.abs() / self.max * scale.y,
+                        ));
+                    }
+                    None => {
+                        if !is_current_range_no_sound {
+                            no_sound_builder.move_to(Point::new(
+                                left + i as f32 / BUF_SIZE as f32 * scale.x,
+                                frame.center().y,
+                            ));
+                            is_current_range_no_sound = true;
+                        }
+                    }
+                }
+
+                // if match iter.peek() {
+                //     Some(value) => (self.now - value.time) as usize == i,
+                //     None => false,
+                // } {
+
+                //     iter.next();
+                //     if is_current_range_no_sound {
+                //         no_sound_builder.line_to(Point::new(
+                //             left + i as f32 / BUF_SIZE as f32 * scale.x,
+                //             frame.center().y,
+                //         ));
+                //         is_current_range_no_sound = false;
+                //     }
+                // } else {
+                //     if !is_current_range_no_sound {
+                //         no_sound_builder.move_to(Point::new(
+                //             left + i as f32 / BUF_SIZE as f32 * scale.x,
+                //             frame.center().y,
+                //         ));
+                //         is_current_range_no_sound = true;
+                //     }
+                // }
+
+                i += 1;
+            }
+            if is_current_range_no_sound {
+                no_sound_builder.line_to(Point::new(
+                    left + i as f32 / BUF_SIZE as f32 * scale.x,
+                    frame.center().y,
+                ));
+            }
+            frame.stroke(
+                &no_sound_builder.build(),
+                canvas::Stroke {
+                    style: canvas::Style::Solid({
+                        let half_accent = cosmic.accent_color();
+                        half_accent.into()
+                    }),
+                    // width: 1.5,
+                    ..Default::default()
+                },
+            );
+            frame.stroke(
+                &sound_builder.build(),
+                canvas::Stroke {
+                    style: canvas::Style::Solid({
+                        let half_accent = cosmic.accent_color();
+                        half_accent.into()
+                    }),
+                    width: 1.5,
+                    ..Default::default()
+                },
+            );
+        }
 
         // draw sound
-        let mut builder = path::Builder::new();
+        // let mut builder = path::Builder::new();
 
-        builder.move_to(end_no_sound);
-        for (pos, value) in self.buf.iter().enumerate() {
-            if value.value.is_sign_positive() {
-                builder.line_to(Point::new(
-                    end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
-                    frame.center().y + value.value / self.max * scale.y,
-                ));
-            }
-        }
-        builder.line_to(Point::new(right, frame.center().y));
-        for (pos, value) in self.buf.iter().rev().enumerate() {
-            let pos = self.buf.len() - (pos + 1);
-            if value.value.is_sign_negative() {
-                builder.line_to(Point::new(
-                    end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
-                    frame.center().y + value.value / self.max * scale.y,
-                ));
-            }
-        }
-        builder.line_to(end_no_sound);
-        frame.fill(
-            &builder.build(),
-            canvas::Fill {
-                style: canvas::Style::Solid({
-                    let mut half_accent = cosmic.accent_color();
-                    half_accent.alpha = 0.25;
-                    half_accent.into()
-                }),
-                ..Default::default()
-            },
-        );
+        // builder.move_to(end_no_sound);
+        // for (pos, value) in self.buf.iter().enumerate() {
+        //     if value.value.is_sign_positive() {
+        //         builder.line_to(Point::new(
+        //             end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
+        //             frame.center().y + value.value / self.max * scale.y,
+        //         ));
+        //     }
+        // }
+        // builder.line_to(Point::new(right, frame.center().y));
+        // for (pos, value) in self.buf.iter().rev().enumerate() {
+        //     let pos = self.buf.len() - (pos + 1);
+        //     if value.value.is_sign_negative() {
+        //         builder.line_to(Point::new(
+        //             end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
+        //             frame.center().y + value.value / self.max * scale.y,
+        //         ));
+        //     }
+        // }
+        // builder.line_to(end_no_sound);
+        // frame.fill(
+        //     &builder.build(),
+        //     canvas::Fill {
+        //         style: canvas::Style::Solid({
+        //             let mut half_accent = cosmic.accent_color();
+        //             half_accent.alpha = 0.25;
+        //             half_accent.into()
+        //         }),
+        //         ..Default::default()
+        //     },
+        // );
 
         vec![frame.into_geometry()]
     }
