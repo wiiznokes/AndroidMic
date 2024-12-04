@@ -25,7 +25,7 @@ use cosmic::{
 };
 
 use crate::{
-    audio_wave::AudioWave,
+    audio_wave::{self, AudioWave},
     config::{AudioFormat, ChannelCount, Config, ConnectionMode, SampleRate},
     fl,
     streamer::{self, ConnectOption, Status, StreamerCommand, StreamerMsg},
@@ -251,14 +251,17 @@ impl Application for AppState {
                     match Endianness::native() {
                         Endianness::Little => self
                             .audio_wave
-                            .push::<LittleEndian>(data, &config.audio_format),
+                            .push::<LittleEndian>(data.into_iter(), &config.audio_format),
                         Endianness::Big => self
                             .audio_wave
-                            .push::<BigEndian>(data, &config.audio_format),
+                            .push::<BigEndian>(data.into_iter(), &config.audio_format),
                     };
                 }
             },
             AppMsg::Tick => {
+                if matches!(self.state, State::Connected) {
+                    self.send_command(StreamerCommand::GetSample);
+                }
                 self.audio_wave.tick();
             }
             AppMsg::Device(audio_device) => {
@@ -345,7 +348,7 @@ impl Application for AppState {
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
         Subscription::batch([
-            time::every(Duration::from_millis(10)).map(|_| AppMsg::Tick),
+            time::every(audio_wave::CYCLE_TIME / audio_wave::BUF_SIZE as u32).map(|_| AppMsg::Tick),
             Subscription::run(|| streamer::sub().map(AppMsg::Streamer)),
         ])
     }

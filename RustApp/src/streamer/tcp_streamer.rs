@@ -10,7 +10,7 @@ use crate::streamer::{
     WriteError, DEFAULT_PC_PORT, DEVICE_CHECK, DEVICE_CHECK_EXPECTED, IO_BUF_SIZE, MAX_PORT,
 };
 
-use super::{ConnectError, Status, StreamerMsg, StreamerTrait};
+use super::{streamer_sub::SIZE_SAMPLE, ConnectError, Status, StreamerMsg, StreamerTrait};
 
 const MAX_WAIT_TIME: Duration = Duration::from_millis(1500);
 
@@ -21,6 +21,7 @@ pub struct TcpStreamer {
     pub port: u16,
     producer: Producer<u8>,
     state: TcpStreamerState,
+    get_sample: bool,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -61,6 +62,7 @@ pub async fn new(ip: IpAddr, producer: Producer<u8>) -> Result<TcpStreamer, Conn
         port: addr.port(),
         producer,
         state: TcpStreamerState::Listening { listener },
+        get_sample: true,
     };
 
     Ok(streamer)
@@ -168,8 +170,18 @@ impl StreamerTrait for TcpStreamer {
                             }
                         }
 
-                        // todo: don't do this when the UI is minimized ?
-                        Ok(Some(StreamerMsg::Data(io_buf.to_vec())))
+                        if self.get_sample && io_buf.len() > 4 {
+                            self.get_sample = false;
+                            let mut sample = [0; SIZE_SAMPLE];
+
+                            for i in 0..SIZE_SAMPLE {
+                                sample[i] = io_buf[i];
+                            }
+
+                            Ok(Some(StreamerMsg::Data(sample)))
+                        } else {
+                            Ok(None)
+                        }
                     }
                     Err(e) => {
                         match e.kind() {
@@ -181,5 +193,9 @@ impl StreamerTrait for TcpStreamer {
                 }
             }
         }
+    }
+
+    fn get_sample(&mut self) {
+        self.get_sample = true;
     }
 }

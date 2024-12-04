@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::app::AppMsg;
 use crate::config::AudioFormat;
 use crate::map_bytes::MapBytes;
@@ -9,11 +11,19 @@ use cosmic::theme;
 use cosmic::widget::canvas::{self, path};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 
-const BUF_SIZE: usize = 500;
+pub const BUF_SIZE: usize = 200;
+pub const CYCLE_TIME: Duration = Duration::from_millis(3500);
+
+#[derive(Debug)]
+struct Value {
+    time: u32,
+    value: f32,
+}
 
 #[derive(Debug)]
 pub struct AudioWave {
-    buf: AllocRingBuffer<f32>,
+    now: u32,
+    buf: AllocRingBuffer<Value>,
     max: f32,
 }
 
@@ -34,10 +44,11 @@ impl AudioWave {
         Self {
             buf: AllocRingBuffer::new(BUF_SIZE),
             max: 1.,
+            now: 0,
         }
     }
 
-    pub fn push<B: ByteOrder>(&mut self, data: Vec<u8>, format: &AudioFormat) {
+    pub fn push<B: ByteOrder>(&mut self, data: impl Iterator<Item = u8>, format: &AudioFormat) {
         #[inline]
         fn map_to_f32<B>(data: &mut impl Iterator<Item = u8>, format: &AudioFormat) -> Option<f32>
         where
@@ -73,19 +84,24 @@ impl AudioWave {
         let mut iter = data.into_iter();
 
         if let Some(value) = map_to_f32::<B>(&mut iter, format) {
-            self.buf.push(value);
+            self.buf.push(Value {
+                time: self.now,
+                value,
+            });
             if self.max < value.abs() {
                 self.max = value.abs();
             }
         }
-
-        // while let Some(value) = map_to_f32::<B>(&mut iter, format) {
-        //     self.buf.push(value);
-        // }
     }
 
     pub fn tick(&mut self) {
-        self.buf.dequeue();
+        self.now = self.now.wrapping_add(1);
+
+        if let Some(v) = self.buf.front() {
+            if v.time.wrapping_add(BUF_SIZE as u32) <= self.now {
+                self.buf.dequeue();
+            }
+        }
     }
 }
 
@@ -142,7 +158,7 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
                     let half_accent = cosmic.accent_color();
                     half_accent.into()
                 }),
-                width: 1.5,
+                // width: 1.5,
                 ..Default::default()
             },
         );
@@ -152,20 +168,20 @@ impl canvas::Program<AppMsg, theme::Theme> for AudioWave {
 
         builder.move_to(end_no_sound);
         for (pos, value) in self.buf.iter().enumerate() {
-            if value.is_sign_positive() {
+            if value.value.is_sign_positive() {
                 builder.line_to(Point::new(
                     end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
-                    frame.center().y + value / self.max * scale.y,
+                    frame.center().y + value.value / self.max * scale.y,
                 ));
             }
         }
         builder.line_to(Point::new(right, frame.center().y));
         for (pos, value) in self.buf.iter().rev().enumerate() {
             let pos = self.buf.len() - (pos + 1);
-            if value.is_sign_negative() {
+            if value.value.is_sign_negative() {
                 builder.line_to(Point::new(
                     end_no_sound.x + pos as f32 / self.buf.len() as f32 * scale.x,
-                    frame.center().y + value / self.max * scale.y,
+                    frame.center().y + value.value / self.max * scale.y,
                 ));
             }
         }

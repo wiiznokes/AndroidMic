@@ -72,6 +72,10 @@ impl StreamerTrait for AdbStreamer {
     fn status(&self) -> Option<Status> {
         self.tcp_streamer.status()
     }
+    
+    fn get_sample(&mut self) {
+        self.tcp_streamer.get_sample()
+    }
 }
 
 impl Drop for AdbStreamer {

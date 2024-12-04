@@ -48,6 +48,8 @@ trait StreamerTrait {
     fn set_buff(&mut self, buff: Producer<u8>);
 
     fn status(&self) -> Option<Status>;
+
+    fn get_sample(&mut self);
 }
 #[allow(clippy::enum_variant_names)]
 #[enum_dispatch(StreamerTrait)]
@@ -111,5 +113,9 @@ impl StreamerTrait for DummyStreamer {
 
     fn status(&self) -> Option<Status> {
         None
+    }
+
+    fn get_sample(&mut self) {
+        
     }
 }
