@@ -19,6 +19,7 @@ pub struct Config {
     pub usb_device_name: Option<String>,
     pub start_at_login: bool,
     pub auto_connect: bool,
+    pub auto_reconnect: bool,
 }
 
 #[derive(Parser, Debug)]

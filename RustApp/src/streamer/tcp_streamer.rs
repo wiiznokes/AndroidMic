@@ -88,7 +88,11 @@ impl StreamerTrait for TcpStreamer {
 
                 info!("TCP server listening on {}", addr);
 
-                let (stream, addr) = listener.accept().await.map_err(ConnectError::CantAccept)?;
+                let (stream, addr) =
+                    tokio::time::timeout(Duration::from_millis(1000), listener.accept())
+                        .await
+                        .map_err(ConnectError::TimeOut)?
+                        .map_err(ConnectError::CantAccept)?;
 
                 info!("connection accepted, remote address: {}", addr);
 

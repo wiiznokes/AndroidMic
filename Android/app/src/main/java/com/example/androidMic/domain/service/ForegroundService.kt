@@ -31,6 +31,8 @@ data class ServiceStates(
     var mode: Mode = Mode.WIFI
 )
 
+private const val MAX_RECONNECTION_COUNT = 30
+private const val DELAY_BETWEEN_RECONNECTION = 1000L
 
 class ForegroundService : Service() {
     private val TAG = "MicService"
@@ -38,25 +40,79 @@ class ForegroundService : Service() {
     private val WAIT_PERIOD = 500L
 
 
+    var tryReconnectCount = 0
+    var lastCommandData: CommandData? = null
+    var userWantToConnect: Boolean = false
+
+
+    private suspend fun autoReconnect() {
+
+        lastCommandData?.let { lastCommandData ->
+
+            if (!userWantToConnect || lastCommandData.autoReconnect != true) {
+                userWantToConnect = false
+                reply(ResponseData(kind = Response.AutoReconnectEnd))
+                return
+            }
+
+            if (tryReconnectCount >= MAX_RECONNECTION_COUNT) {
+                userWantToConnect = false
+                reply(ResponseData(kind = Response.AutoReconnectEnd))
+                return
+            }
+
+            tryReconnectCount += 1
+
+
+            if (!startStream(lastCommandData)) {
+                delay(DELAY_BETWEEN_RECONNECTION)
+                autoReconnect()
+            }
+        }
+    }
+
     private inner class ServiceHandler(looper: Looper) : Handler(looper) {
         override fun handleMessage(msg: Message) {
 
             val commandData = CommandData.fromMessage(msg);
 
             when (Command.entries[msg.what]) {
-                Command.StartStream -> startStream(commandData, msg.replyTo)
-                Command.StopStream -> stopStream(msg.replyTo)
-                Command.GetStatus -> getStatus(msg.replyTo)
+                Command.StartStream -> {
+                    userWantToConnect = true
+                    lastCommandData = commandData
+                    startStream(commandData)
+                    scope.launch {
+                        delay(DELAY_BETWEEN_RECONNECTION)
+                        tryReconnectCount = 0
+                        autoReconnect()
+                    }
+                }
+
+                Command.StopStream -> {
+                    userWantToConnect = false
+                    stopStream()
+                }
+
+                Command.GetStatus -> getStatus()
                 Command.BindCheck -> {
                     uiMessenger = msg.replyTo
+                }
+
+                Command.StreamError -> {
+                    stopStream()
+                    scope.launch {
+                        delay(DELAY_BETWEEN_RECONNECTION)
+                        tryReconnectCount = 0
+                        autoReconnect()
+                    }
                 }
             }
 
         }
     }
 
-    private fun reply(replyTo: Messenger?, resp: ResponseData) {
-        replyTo?.send(resp.toResponseMsg())
+    private fun reply(resp: ResponseData) {
+        uiMessenger?.send(resp.toResponseMsg())
     }
 
     private lateinit var handlerThread: HandlerThread
@@ -97,6 +153,7 @@ class ForegroundService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
         messageui = MessageUi(this)
+
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -162,20 +219,17 @@ class ForegroundService : Service() {
     }
 
     // start streaming
-    private fun startStream(msg: CommandData, replyTo: Messenger) {
-
-
+    private fun startStream(msg: CommandData): Boolean {
 
         // check connection state
         if (states.isStreamStarted) {
             reply(
-                replyTo,
                 ResponseData(
                     ServiceState.Connected,
                     this.getString(R.string.stream_already_started)
                 )
             )
-            return
+            return true
         }
 
         Log.d(TAG, "startStream [start]")
@@ -191,22 +245,21 @@ class ForegroundService : Service() {
             Log.d(TAG, "start stream with mode ${msg.mode!!.name} failed:\n${e.message}")
 
             reply(
-                replyTo,
                 ResponseData(
                     ServiceState.Disconnected,
                     applicationContext.getString(R.string.error) + e.message
                 )
             )
-            return
+            return false
         }
 
         if (!states.isAudioStarted) {
-            if (!startAudio(msg, replyTo)) {
+            if (!startAudio(msg)) {
                 managerStream?.shutdown()
                 managerStream = null
                 managerAudio?.shutdown()
                 managerAudio = null
-                return
+                return false
             }
         }
 
@@ -217,7 +270,6 @@ class ForegroundService : Service() {
         ) {
 
             reply(
-                replyTo,
                 ResponseData(
                     ServiceState.Connected,
                     applicationContext.getString(R.string.connected_device) + managerStream?.getInfo()
@@ -227,25 +279,27 @@ class ForegroundService : Service() {
             states.isStreamStarted = true
             Log.d(TAG, "startStream [connected]")
 
+            return true
         } else {
 
             reply(
-                replyTo,
                 ResponseData(
                     ServiceState.Disconnected,
                     applicationContext.getString(R.string.failed_to_connect)
                 )
             )
-            stopStream(null)
-            stopAudio(null)
+            stopStream()
+            stopAudio()
+            return false
         }
     }
 
     // stop streaming
-    fun stopStream(replyTo: Messenger?) {
+    fun stopStream() {
+
         Log.d(TAG, "stopStream")
 
-        stopAudio(replyTo)
+        stopAudio()
 
         managerStream?.shutdown()
         managerStream = null
@@ -253,16 +307,19 @@ class ForegroundService : Service() {
         states.isStreamStarted = false
 
         reply(
-            uiMessenger,
             ResponseData(
                 ServiceState.Disconnected,
                 applicationContext.getString(R.string.device_disconnected)
             )
         )
 
-        if (!isBind) {
+        if (serviceShouldStop()) {
             stopService()
         }
+    }
+
+    private fun serviceShouldStop(): Boolean {
+        return !isBind && (!userWantToConnect || tryReconnectCount >= MAX_RECONNECTION_COUNT)
     }
 
     private fun isConnected(): ServiceState {
@@ -274,10 +331,10 @@ class ForegroundService : Service() {
     }
 
     // start mic
-    private fun startAudio(msg: CommandData, replyTo: Messenger): Boolean {
+    private fun startAudio(msg: CommandData): Boolean {
         // check audio state
         if (states.isAudioStarted) {
-            reply(replyTo, ResponseData(msg = this.getString(R.string.microphone_already_started)))
+            reply(ResponseData(msg = this.getString(R.string.microphone_already_started)))
             return true
         }
 
@@ -294,7 +351,7 @@ class ForegroundService : Service() {
                 channelCount = msg.channelCount!!.value,
             )
         } catch (e: IllegalArgumentException) {
-            reply(replyTo, ResponseData(msg = application.getString(R.string.error) + e.message))
+            reply(ResponseData(msg = application.getString(R.string.error) + e.message))
             return false
         }
 
@@ -310,13 +367,13 @@ class ForegroundService : Service() {
         Log.d(TAG, "startAudio [recording]")
         states.isAudioStarted = true
 
-        reply(replyTo, ResponseData(msg = application.getString(R.string.mic_start_recording)))
+        reply(ResponseData(msg = application.getString(R.string.mic_start_recording)))
 
         return true
     }
 
     // stop mic
-    private fun stopAudio(replyTo: Messenger?) {
+    private fun stopAudio() {
         Log.d(TAG, "stopAudio")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -326,13 +383,12 @@ class ForegroundService : Service() {
         showMessage(application.getString(R.string.stop_recording))
         states.isAudioStarted = false
 
-        reply(replyTo, ResponseData(msg = application.getString(R.string.recording_stopped)))
+        reply(ResponseData(msg = application.getString(R.string.recording_stopped)))
     }
 
 
-    private fun getStatus(replyTo: Messenger) {
+    private fun getStatus() {
         Log.d(TAG, "getStatus")
-
-        reply(replyTo, ResponseData(isConnected()))
+        reply(ResponseData(isConnected()))
     }
 }

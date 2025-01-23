@@ -33,6 +33,7 @@ class AppPreferences(
     val channelCount = enumPreference("channelCount", ChannelCount.Mono)
     val audioFormat = enumPreference("audioFormat", AudioFormat.I16)
 
+    val autoReconnect = booleanPreference("autoReconnect", false)
 }
 
 enum class Mode {

@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    time::Duration,
+};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait},
@@ -82,11 +85,14 @@ const SHARED_BUF_SIZE_S: f32 = 0.05; // 0.05s
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
-    Default,
+    Disconnected,
     WaitingOnStatus,
     Connected,
     Listening,
 }
+
+const MAX_RECONNECTION_TRY: u32 = 30;
+const DELAY_BETWEEN_RECONNECTION: Duration = Duration::from_millis(1500);
 
 pub struct AppState {
     core: Core,
@@ -100,6 +106,9 @@ pub struct AppState {
     pub state: State,
     pub advanced_window: Option<AdvancedWindow>,
     pub logs: String,
+    pub auto_reconnect_try_count: u32,
+    // set to true when the connect button is clicked, and false when stop is clicked
+    pub user_want_to_connect: bool,
 }
 
 pub struct AdvancedWindow {
@@ -228,14 +237,16 @@ impl Application for AppState {
             core,
             audio_stream: None,
             streamer: None,
+            user_want_to_connect: flags.config.data().auto_connect,
             config: flags.config,
             audio_device,
             audio_host,
             audio_devices,
             audio_wave: AudioWave::new(),
-            state: State::Default,
+            state: State::Disconnected,
             advanced_window: None,
             logs: String::new(),
+            auto_reconnect_try_count: 0,
         };
 
         (app, Task::none())
@@ -258,7 +269,7 @@ impl Application for AppState {
                 StreamerMsg::Status(status) => match status {
                     Status::Error(e) => {
                         self.add_log(&e);
-                        self.state = State::Default;
+                        self.state = State::Disconnected;
                         self.audio_stream = None;
                         self.audio_wave.clear();
                     }
@@ -272,6 +283,7 @@ impl Application for AppState {
                     }
                     Status::Connected => {
                         self.state = State::Connected;
+                        self.auto_reconnect_try_count = 0;
                     }
                     Status::UpdateAudioWave { data } => {
                         self.audio_wave.write_chunk(&data);
@@ -291,11 +303,25 @@ impl Application for AppState {
                 self.update_audio_stream();
             }
             AppMsg::Connect => {
+                self.auto_reconnect_try_count = 0;
+                self.user_want_to_connect = true;
                 self.connect();
             }
+            AppMsg::AutoReconnect => {
+                if self.auto_reconnect_try_count > MAX_RECONNECTION_TRY {
+                    self.user_want_to_connect = false;
+                    return Task::none();
+                }
+
+                if matches!(self.state, State::Disconnected) {
+                    self.auto_reconnect_try_count += 1;
+                    self.connect();
+                }
+            }
             AppMsg::Stop => {
+                self.user_want_to_connect = false;
                 self.send_command(StreamerCommand::Stop);
-                self.state = State::Default;
+                self.state = State::Disconnected;
                 self.audio_stream = None;
                 self.audio_wave.clear();
             }
@@ -338,6 +364,9 @@ impl Application for AppState {
                 ConfigMsg::AutoConnect(auto_connect) => {
                     self.config.update(|s| s.auto_connect = auto_connect);
                 }
+                ConfigMsg::AutoReconnect(auto_reconnect) => {
+                    self.config.update(|s| s.auto_reconnect = auto_reconnect);
+                }
             },
         }
 
@@ -358,6 +387,19 @@ impl Application for AppState {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        Subscription::run(|| streamer::sub().map(AppMsg::Streamer))
+        Subscription::batch([
+            if self.should_auto_reconnect() {
+                cosmic::iced::time::every(DELAY_BETWEEN_RECONNECTION).map(|_| AppMsg::AutoReconnect)
+            } else {
+                Subscription::none()
+            },
+            Subscription::run(|| streamer::sub().map(AppMsg::Streamer)),
+        ])
+    }
+}
+
+impl AppState {
+    pub fn should_auto_reconnect(&self) -> bool {
+        self.config.data().auto_reconnect && self.user_want_to_connect
     }
 }

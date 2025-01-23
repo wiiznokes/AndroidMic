@@ -119,7 +119,13 @@ fn connection_type(app: &AppState) -> Element<'_, AppMsg> {
 
 fn connect_button(app: &AppState) -> Element<'_, AppMsg> {
     match app.state {
-        State::Default => button::text(fl!("connect")).on_press(AppMsg::Connect),
+        State::Disconnected => {
+            if app.should_auto_reconnect() {
+                button::text(fl!("stop_auto_reconnect")).on_press(AppMsg::Stop)
+            } else {
+                button::text(fl!("connect")).on_press(AppMsg::Connect)
+            }
+        }
         State::Listening => button::text(fl!("listening")).on_press(AppMsg::Stop),
         State::Connected => button::destructive(fl!("disconnect")).on_press(AppMsg::Stop),
         State::WaitingOnStatus => button::text(fl!("waiting")),
@@ -170,6 +176,11 @@ pub fn advanced_window<'a>(
             settings::section()
                 .title(fl!("auto_connect"))
                 .add(toggler(config.auto_connect).on_toggle(ConfigMsg::AutoConnect)),
+        )
+        .push(
+            settings::section()
+                .title(fl!("auto_reconnect"))
+                .add(toggler(config.auto_reconnect).on_toggle(ConfigMsg::AutoReconnect)),
         )
         .into()
 }

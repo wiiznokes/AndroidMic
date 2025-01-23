@@ -132,7 +132,11 @@ class MicAudioManager(
     // shutdown manager
     // should not call any methods after calling
     fun shutdown() {
-        recorder.stop()
+        try {
+            recorder.stop()
+        } catch (e: IllegalStateException) {
+
+        }
         recorder.release()
         streamJob?.cancel()
         Log.d(TAG, "shutdown")

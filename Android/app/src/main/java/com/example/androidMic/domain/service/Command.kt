@@ -20,17 +20,23 @@ private const val ID_SAMPLE_RATE: String = "ID_SAMPLE_RATE"
 private const val ID_CHANNEL_COUNT: String = "ID_CHANNEL_COUNT"
 private const val ID_AUDIO_FORMAT: String = "ID_AUDIO_FORMAT"
 
+private const val ID_AUTO_RECONNECT: String = "ID_AUTO_RECONNECT"
+
 
 /**
- * Commands UI -> Service
+ * Commands to Service
  */
 enum class Command {
     StartStream,
     StopStream,
     GetStatus,
 
-    // called when the ui is bind
+    // Send by the ui when it is bind with the service
+    // why not using onBind? Because we need a way to respond to the UI when the stream end on his own
     BindCheck,
+
+    // Send by streamer implementation when an error occurs
+    StreamError,
 }
 
 fun Bundle.getOrdinal(key: String): Int? {
@@ -51,6 +57,7 @@ data class CommandData(
     val sampleRate: SampleRates? = null,
     val channelCount: ChannelCount? = null,
     val audioFormat: AudioFormat? = null,
+    val autoReconnect: Boolean? = null
 ) {
 
     companion object {
@@ -64,6 +71,7 @@ data class CommandData(
                 channelCount = msg.data.getOrdinal(ID_CHANNEL_COUNT)
                     ?.let { ChannelCount.entries[it] },
                 audioFormat = msg.data.getOrdinal(ID_AUDIO_FORMAT)?.let { AudioFormat.entries[it] },
+                autoReconnect = msg.data.getBoolean(ID_AUTO_RECONNECT),
             )
         }
     }
@@ -81,6 +89,8 @@ data class CommandData(
         this.channelCount?.let { r.putInt(ID_CHANNEL_COUNT, it.ordinal) }
         this.audioFormat?.let { r.putInt(ID_AUDIO_FORMAT, it.ordinal) }
 
+        this.autoReconnect?.let { r.putBoolean(ID_AUTO_RECONNECT, it) }
+
         val reply = Message.obtain()
         reply.data = r
         reply.what = this.command.ordinal
@@ -97,6 +107,7 @@ data class CommandData(
  */
 enum class Response {
     Standard,
+    AutoReconnectEnd
 }
 
 enum class ServiceState {

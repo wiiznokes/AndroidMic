@@ -6,6 +6,7 @@
     -->
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
+    <string name="stop_auto_reconnect">Stop Auto Reconnect</string>
     <string name="turn_audio">Record Audio</string>
 
     <!--
@@ -18,6 +19,7 @@
 
 
     <string name="drawerMode">Connection mode</string>
+    <string name="auto_reconnect">Automatically reconnect</string>
 
     <string name="drawerIpPort" translatable="false">IP:PORT</string>
     <string name="dialog_ip" translatable="false">IP</string>

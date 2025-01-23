@@ -2,6 +2,7 @@ package com.example.androidMic.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,12 +17,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -84,7 +85,9 @@ fun DrawerBody(vm: MainViewModel) {
             subTitle = mode.value.toString(),
             contentDescription = "set mode",
             icon = Icons.Rounded.Settings,
-            expanded = dialogModeExpanded
+            onClick = {
+                dialogModeExpanded.value = true
+            },
         )
 
         when (mode.value) {
@@ -98,7 +101,9 @@ fun DrawerBody(vm: MainViewModel) {
                     subTitle = vm.prefs.ip.getAsState().value + ":" + vm.prefs.port.getAsState().value,
                     contentDescription = "set ip and port",
                     icon = Icons.Rounded.Wifi,
-                    expanded = dialogIpPortExpanded
+                    onClick = {
+                        dialogIpPortExpanded.value = true
+                    },
                 )
             }
 
@@ -111,6 +116,21 @@ fun DrawerBody(vm: MainViewModel) {
 //            }
         }
 
+        val autoReconnect = vm.prefs.autoReconnect.getAsState()
+
+        SettingsItem(
+            title = stringResource(id = R.string.auto_reconnect),
+            contentDescription = "set auto reconnect",
+            onClick = {
+                vm.setAutoReconnect(!autoReconnect.value)
+            },
+            rightContent = {
+                Checkbox(autoReconnect.value, onCheckedChange = {
+                    vm.setAutoReconnect(it)
+                })
+            }
+        )
+
         // Audio
         SettingsItemsSubtitle(R.string.drawer_subtitle_record)
 
@@ -122,7 +142,9 @@ fun DrawerBody(vm: MainViewModel) {
             title = stringResource(id = R.string.sample_rate),
             subTitle = vm.prefs.sampleRate.getAsState().value.value.toString(),
             contentDescription = "set sample rate",
-            expanded = dialogSampleRateExpanded
+            onClick = {
+                dialogSampleRateExpanded.value = true
+            },
         )
 
         val dialogChannelCountExpanded = rememberSaveable {
@@ -133,7 +155,9 @@ fun DrawerBody(vm: MainViewModel) {
             title = stringResource(id = R.string.channel_count),
             subTitle = vm.prefs.channelCount.getAsState().value.toString(),
             contentDescription = "set channel count",
-            expanded = dialogChannelCountExpanded
+            onClick = {
+                dialogChannelCountExpanded.value = true
+            },
         )
 
         val dialogAudioFormatExpanded = rememberSaveable {
@@ -144,7 +168,9 @@ fun DrawerBody(vm: MainViewModel) {
             title = stringResource(id = R.string.audio_format),
             subTitle = vm.prefs.audioFormat.getAsState().value.toString(),
             contentDescription = "set audio format",
-            expanded = dialogAudioFormatExpanded
+            onClick = {
+                dialogAudioFormatExpanded.value = true
+            },
         )
 
         // Other
@@ -159,7 +185,9 @@ fun DrawerBody(vm: MainViewModel) {
             subTitle = vm.prefs.theme.getAsState().value.toString(),
             contentDescription = "set theme",
             icon = Icons.Rounded.DarkMode,
-            expanded = dialogThemesExpanded
+            onClick = {
+                dialogThemesExpanded.value = true
+            },
         )
 
     }
@@ -187,41 +215,51 @@ private fun SettingsItemsSubtitle(
 @Composable
 private fun SettingsItem(
     title: String,
-    subTitle: String,
+    subTitle: String? = null,
     contentDescription: String,
     icon: ImageVector? = null,
-    expanded: MutableState<Boolean>
+    onClick: (() -> Unit)? = null,
+    rightContent: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
             .clickable {
-                expanded.value = true
+                onClick?.invoke()
             },
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onBackground
-            )
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
 
-            Text(
-                text = subTitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+                if (subTitle != null) {
+                    Text(
+                        text = subTitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+            }
         }
+        rightContent?.invoke()
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.onBackground)
 }

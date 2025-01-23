@@ -4,6 +4,7 @@ use byteorder::{ByteOrder, NativeEndian};
 use enum_dispatch::enum_dispatch;
 use prost::DecodeError;
 use rtrb::{chunks::ChunkError, Producer};
+use tokio::time::error::Elapsed;
 use std::io;
 use tcp_streamer::TcpStreamer;
 use thiserror::Error;
@@ -75,6 +76,8 @@ enum ConnectError {
     NoLocalAddress(io::Error),
     #[error("accept failed: {0}")]
     CantAccept(io::Error),
+    #[error("Timeout: {0}")]
+    TimeOut(#[from] Elapsed),
     #[error(transparent)]
     WriteError(#[from] WriteError),
     #[error("no usb device found: {0}")]

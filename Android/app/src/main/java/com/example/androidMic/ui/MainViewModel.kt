@@ -51,6 +51,7 @@ class MainViewModel : ViewModel() {
 
     val isStreamStarted = mutableStateOf(false)
     val isButtonConnectClickable = mutableStateOf(false)
+    val userWantToConnect = mutableStateOf(false)
 
     init {
         Log.d(TAG, "init")
@@ -72,6 +73,10 @@ class MainViewModel : ViewModel() {
                         addLogMessage(it)
                     }
                 }
+
+                Response.AutoReconnectEnd -> {
+                    userWantToConnect.value = false
+                }
             }
         }
     }
@@ -90,6 +95,7 @@ class MainViewModel : ViewModel() {
 
         isStreamStarted.value = false
         isButtonConnectClickable.value = false
+        userWantToConnect.value = false
 
         val msg = CommandData(Command.BindCheck).toCommandMsg()
         msg.replyTo = mMessenger
@@ -98,43 +104,47 @@ class MainViewModel : ViewModel() {
 
     fun onConnectButton(): Dialogs? {
         if (!mBound) return null
-        val reply = if (isStreamStarted.value) {
-            Log.d(TAG, "onConnectButton: stop stream")
-            CommandData(Command.StopStream).toCommandMsg()
-        } else {
-            val ip = prefs.ip.getBlocking()
-            val port = prefs.port.getBlocking()
-            val mode = prefs.mode.getBlocking()
+        val reply =
+            if (isStreamStarted.value || (userWantToConnect.value && prefs.autoReconnect.getBlocking())) {
+                userWantToConnect.value = false
+                Log.d(TAG, "onConnectButton: stop stream")
+                CommandData(Command.StopStream).toCommandMsg()
+            } else {
+                userWantToConnect.value = true
+                val ip = prefs.ip.getBlocking()
+                val port = prefs.port.getBlocking()
+                val mode = prefs.mode.getBlocking()
 
-            val data = CommandData(
-                command = Command.StartStream,
-                sampleRate = prefs.sampleRate.getBlocking(),
-                channelCount = prefs.channelCount.getBlocking(),
-                audioFormat = prefs.audioFormat.getBlocking(),
-                mode = mode
-            )
+                val data = CommandData(
+                    command = Command.StartStream,
+                    sampleRate = prefs.sampleRate.getBlocking(),
+                    channelCount = prefs.channelCount.getBlocking(),
+                    audioFormat = prefs.audioFormat.getBlocking(),
+                    mode = mode,
+                    autoReconnect = prefs.autoReconnect.getBlocking()
+                )
 
-            when (mode) {
-                Mode.WIFI, Mode.UDP -> {
-                    if (!checkIp(ip) || !checkPort(port)) {
-                        uiHelper.makeToast(
-                            uiHelper.getString(R.string.invalid_ip_port)
-                        )
-                        return Dialogs.IpPort
+                when (mode) {
+                    Mode.WIFI, Mode.UDP -> {
+                        if (!checkIp(ip) || !checkPort(port)) {
+                            uiHelper.makeToast(
+                                uiHelper.getString(R.string.invalid_ip_port)
+                            )
+                            return Dialogs.IpPort
+                        }
+                        data.ip = ip
+                        data.port = port.toInt()
                     }
-                    data.ip = ip
-                    data.port = port.toInt()
+
+                    else -> {}
                 }
 
-                else -> {}
+                Log.d(TAG, "onConnectButton: start stream")
+                // lock button to avoid duplicate events
+                isButtonConnectClickable.value = false
+
+                data.toCommandMsg()
             }
-
-            Log.d(TAG, "onConnectButton: start stream")
-            // lock button to avoid duplicate events
-            isButtonConnectClickable.value = false
-
-            data.toCommandMsg()
-        }
 
         reply.replyTo = mMessenger
         mService?.send(reply)
@@ -185,6 +195,13 @@ class MainViewModel : ViewModel() {
             prefs.dynamicColor.update(dynamicColor)
         }
     }
+
+    fun setAutoReconnect(autoReconnect: Boolean) {
+        viewModelScope.launch {
+            prefs.autoReconnect.update(autoReconnect)
+        }
+    }
+
 
     fun cleanLog() {
         textLog.value = ""

@@ -10,6 +10,7 @@ pub enum AppMsg {
     Streamer(StreamerMsg),
     Device(AudioDevice),
     Connect,
+    AutoReconnect,
     Stop,
     AdvancedOptions,
     Config(ConfigMsg),
@@ -23,4 +24,5 @@ pub enum ConfigMsg {
     AudioFormat(AudioFormat),
     StartAtLogin(bool),
     AutoConnect(bool),
+    AutoReconnect(bool),
 }

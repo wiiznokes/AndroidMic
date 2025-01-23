@@ -71,7 +71,7 @@ class AdbStreamer(private val scope: CoroutineScope) : Streamer {
                     Log.d(TAG, "${e.message}")
                     delay(5)
                     disconnect()
-                    tx.send(CommandData(Command.StopStream).toCommandMsg())
+                    tx.send(CommandData(Command.StreamError).toCommandMsg())
                 } catch (e: Exception) {
                     Log.d(TAG, "${e.message}")
                 }

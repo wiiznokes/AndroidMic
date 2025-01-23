@@ -256,6 +256,8 @@ private fun ButtonConnect(
         text =
         if (vm.isStreamStarted.value)
             stringResource(id = R.string.disconnect)
+        else if (vm.userWantToConnect.value && vm.prefs.autoReconnect.getAsState().value)
+            stringResource(id = R.string.stop_auto_reconnect)
         else
             stringResource(id = R.string.connect),
         enabled = vm.isButtonConnectClickable.value
