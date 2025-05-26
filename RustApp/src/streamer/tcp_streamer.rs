@@ -8,6 +8,7 @@ use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::{
     audio::{resampler::convert_audio_stream, AudioPacketFormat},
+    config::AudioFormat,
     streamer::{WriteError, DEFAULT_PC_PORT, MAX_PORT},
 };
 
@@ -23,6 +24,7 @@ pub struct TcpStreamer {
     producer: Producer<u8>,
     format: AudioPacketFormat,
     pub state: TcpStreamerState,
+    pub nnoise: Box<nnnoiseless::DenoiseState<'static>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -67,6 +69,7 @@ pub async fn new(
         producer,
         format,
         state: TcpStreamerState::Listening { listener },
+        nnoise: nnnoiseless::DenoiseState::new(),
     };
 
     Ok(streamer)
@@ -117,17 +120,73 @@ impl StreamerTrait for TcpStreamer {
                         match AudioPacketMessage::decode(frame) {
                             Ok(packet) => {
                                 let buffer_size = packet.buffer.len();
+                                let chunk_size = std::cmp::min(buffer_size, self.producer.slots());
 
-                                if let Ok(buffer) =
-                                    convert_audio_stream(&mut self.producer, packet, &self.format)
-                                {
-                                    // compute the audio wave from the buffer
-                                    res = Some(Status::UpdateAudioWave {
-                                        data: AudioPacketMessage::to_wave_data(&buffer),
-                                    });
+                                // mapping from android AudioFormat to encoding size
+                                let audio_format =
+                                    AudioFormat::from_android_format(packet.audio_format).unwrap();
+                                let encoding_size =
+                                    audio_format.sample_size() * packet.channel_count as usize;
 
-                                    debug!("received {} bytes", buffer_size);
-                                };
+                                // make sure chunk_size is a multiple of encoding_size
+                                let correction = chunk_size % encoding_size;
+
+                                match self.producer.write_chunk_uninit(chunk_size - correction) {
+                                    Ok(chunk) => {
+                                        let mut final_res: Vec<u8> = Vec::new();
+
+                                        packet
+                                            .buffer
+                                            .chunks(nnnoiseless::DenoiseState::FRAME_SIZE * 2)
+                                            .for_each(|e| {
+
+                                                if e.len() != nnnoiseless::DenoiseState::FRAME_SIZE * 2 {
+                                                    return;
+                                                }
+                                                
+                                                let mut res = vec![0f32; nnnoiseless::DenoiseState::FRAME_SIZE];
+
+                                                use crate::audio::AudioBytes;
+
+                                                let input = e
+                                                    .chunks(2)
+                                                    .map(|slice| {
+                                                        i16::from_bytes(slice).unwrap() as f32
+                                                    })
+                                                    .collect::<Vec<_>>();
+
+                                                self.nnoise.process_frame(&mut res, &input);
+
+                                                let mut res: Vec<u8> = res
+                                                    .into_iter()
+                                                    .map(|v| {
+                                                        let v = v as i16;
+                                                        v.to_le_bytes()
+                                                    })
+                                                    .flatten()
+                                                    .collect();
+
+                                                final_res.append(&mut res);
+                                            });
+
+                                        info!(
+                                            "FRAME_SIZE = {}",
+                                            nnnoiseless::DenoiseState::FRAME_SIZE
+                                        );
+                                        info!("buffer_size = {}", buffer_size);
+
+                                        chunk.fill_from_iter(final_res.into_iter());
+                                        debug!(
+                                            "received {} bytes, corrected {} bytes, lost {} bytes",
+                                            buffer_size,
+                                            correction,
+                                            buffer_size - chunk_size + correction
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!("dropped packet: {}", e);
+                                    }
+                                }
                             }
                             Err(e) => {
                                 return Err(ConnectError::WriteError(WriteError::Deserializer(e)));

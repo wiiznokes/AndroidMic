@@ -15,7 +15,7 @@ use zconf::ConfigManager;
 #[macro_use]
 extern crate log;
 
-mod audio;
+pub mod audio;
 mod config;
 mod start_at_login;
 mod streamer;
@@ -56,6 +56,7 @@ fn main() {
 
     // setup log file
     let target = Box::new(File::create(log_file_path.clone()).expect("Can't create log file"));
+
     env_logger::Builder::new()
         .format(|buf, record| {
             writeln!(
@@ -72,6 +73,7 @@ fn main() {
         })))
         .filter_level(log::LevelFilter::Warn)
         .filter_module("android_mic", log::LevelFilter::Debug)
+        .parse_default_env()
         .init();
 
     // generated from https://patorjk.com/software/taag/#p=display&h=2&f=Doom&t=AndroidMic

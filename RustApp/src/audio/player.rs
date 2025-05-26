@@ -83,7 +83,7 @@ where
         &config,
         move |data: &mut [F], _| {
             // read data from the consumer
-            let data_size = data.len() * std::mem::size_of::<F>();
+            let data_size = data.len() / 2 * std::mem::size_of::<F>();
             match consumer.read_chunk(data_size) {
                 Ok(chunk) => {
                     let samples = chunk
@@ -93,7 +93,12 @@ where
                         .map(|chunk| F::from_bytes(chunk).unwrap())
                         .collect::<Vec<_>>();
                     let len = data.len();
-                    data[..len].copy_from_slice(&samples[..len]);
+
+                    for (index, i) in samples.into_iter().enumerate() {
+                        data[index * 2] = i;
+                        data[index * 2 + 1] = i;
+                    }
+                    // data[..len].copy_from_slice(&samples[..len]);
                 }
                 Err(ChunkError::TooFewSlots(slots)) => {
                     if slots == 0 {
