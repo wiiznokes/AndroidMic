@@ -74,7 +74,7 @@ directories = "6"
 prost = "0.14"
 tokio-util = { version = "0.7", features = ["codec", "net"] }
 chrono = "0.4"
-libcosmic = { git = "https://github.com/joshuamegnauth54/libcosmic.git", rev = "d9d229e9a888d0307a628957480bfe530b35f42d", features = [
+libcosmic = { git = "https://github.com/pop-os/libcosmic.git", rev = "a85b3693994ef2b8275eca6a9eccc86a2d7e9f86", features = [
     "winit",
     "wgpu",
     "tokio",
