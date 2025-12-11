@@ -63,7 +63,13 @@
 
     <string name="start_streaming">Start streaming</string>
     <string name="start_recording">Start recording</string>
-    <string name="stop_streaming">Stop streaming</string>
+    <string name="stop_streaming">Stop streaming</'string'>
     <string name="stop_recording">Stop recording</string>
+
+
+    <string name="default_tile_label">Connect to PC</string>
+    <string name="tile_label_connected">Connected to PC</string>
+    <string name="tile_label_disconnected">Disconnected</string>
+
 
 </resources>
