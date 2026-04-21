@@ -196,7 +196,7 @@ impl AudioBytes for f32 {
         } else if bytes.len() == 4 {
             NativeEndian::read_f32(bytes)
         } else {
-            unreachable!()
+            panic!()
         }
     }
 
