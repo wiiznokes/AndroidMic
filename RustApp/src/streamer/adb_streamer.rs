@@ -74,10 +74,10 @@ pub async fn new(port: u16, stream_config: AudioStream) -> Result<AdbStreamer, C
     }
 
     for device_id in &devices {
-        if let Err(e) = remove_adb_reverse_proxy(device_id, tcp_streamer.port).await {
-            if !e.to_string().contains("not found") {
-                warn!("cannot remove adb proxy for device {device_id}: {e}");
-            }
+        if let Err(e) = remove_adb_reverse_proxy(device_id, tcp_streamer.port).await
+            && !e.to_string().contains("not found")
+        {
+            warn!("cannot remove adb proxy for device {device_id}: {e}");
         }
 
         let mut cmd = Command::new("adb");

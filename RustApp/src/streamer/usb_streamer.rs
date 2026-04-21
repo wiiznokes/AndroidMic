@@ -109,19 +109,17 @@ pub async fn new(stream_config: AudioStream) -> Result<UsbStreamer, ConnectError
     }
 
     let (device_info, endpoints, reader, writer) = {
-        let device_info = loop {
-            match nusb::list_devices()
-                .await
-                .map_err(|e| ConnectError::NoUsbDevice(e.into()))?
-                .find(|d| d.in_accessory_mode())
-            {
-                Some(info) => break info,
-                None => {
-                    return Err(ConnectError::NoUsbDevice(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        "No USB device found in accessory mode.\nIf this is your first connection attempt, the device has been switched to accessory mode.\nPlease click Connect again to establish the connection.",
-                    )));
-                }
+        let device_info = match nusb::list_devices()
+            .await
+            .map_err(|e| ConnectError::NoUsbDevice(e.into()))?
+            .find(|d| d.in_accessory_mode())
+        {
+            Some(info) => info,
+            None => {
+                return Err(ConnectError::NoUsbDevice(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "No USB device found in accessory mode.\nIf this is your first connection attempt, the device has been switched to accessory mode.\nPlease click Connect again to establish the connection.",
+                )));
             }
         };
 
