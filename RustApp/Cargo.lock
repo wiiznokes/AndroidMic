@@ -219,6 +219,7 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "interprocess",
+ "itertools 0.14.0",
  "libcosmic",
  "light_enum",
  "local-ip-address",

@@ -75,42 +75,61 @@ fn build_output_stream<F>(
     mut consumer: Consumer<u8>,
 ) -> anyhow::Result<cpal::Stream, cpal::BuildStreamError>
 where
-    F: cpal::SizedSample + AudioBytes + std::fmt::Debug + 'static,
+    F: cpal::SizedSample + AudioBytes + 'static,
 {
+    let frame_size = std::mem::size_of::<F>();
+    let channels = config.channels as usize;
+    let frame_bytes = frame_size * channels;
+
     device.build_output_stream(
         &config,
         move |data: &mut [F], _| {
-            // read data from the consumer
-            let data_size = std::mem::size_of_val(data);
-            match consumer.read_chunk(data_size) {
-                Ok(chunk) => {
-                    let samples = chunk
-                        .into_iter()
-                        .collect::<Vec<_>>()
-                        .chunks_exact(std::mem::size_of::<F>())
-                        .map(|chunk| F::from_bytes(chunk).unwrap())
-                        .collect::<Vec<_>>();
-                    let len = data.len();
-                    data[..len].copy_from_slice(&samples[..len]);
-                }
-                Err(ChunkError::TooFewSlots(slots)) => {
-                    if slots == 0 {
-                        return;
-                    }
+            let byte_len = data.len() * frame_size;
 
-                    let data_size =
-                        slots - (slots % (std::mem::size_of::<F>() * config.channels as usize));
-                    let chunk = consumer.read_chunk(data_size).unwrap();
-                    let samples = chunk
-                        .into_iter()
-                        .collect::<Vec<_>>()
-                        .chunks_exact(std::mem::size_of::<F>())
-                        .map(|chunk| F::from_bytes(chunk).unwrap())
-                        .collect::<Vec<_>>();
-                    let len = samples.len().min(data.len());
-                    data[..len].copy_from_slice(&samples[..len]);
+            let chunk = match consumer.read_chunk(byte_len) {
+                Ok(c) => c,
+                Err(ChunkError::TooFewSlots(slots)) if slots > 0 => {
+                    let aligned = slots - (slots % frame_bytes);
+                    match consumer.read_chunk(aligned) {
+                        Ok(c) => c,
+                        Err(_) => return,
+                    }
                 }
+                _ => return,
+            };
+
+            let (chunk1, mut chunk2) = chunk.as_slices();
+
+            let chunk1_iter = chunk1.chunks_exact(frame_size);
+
+            // handle case if a frame is split in chunk1 and chunk2.
+            // this will probably never happens tho
+            let mid_part = if chunk1_iter.remainder().len() != 0 {
+                let (right_part, chunk2_) =
+                    chunk2.split_at(frame_size - chunk1_iter.remainder().len());
+
+                chunk2 = chunk2_;
+
+                let mut v = Vec::with_capacity(frame_size);
+
+                v.extend(chunk1_iter.remainder());
+                v.extend(right_part);
+
+                itertools::Either::Left(std::iter::once(F::from_bytes(&v)))
+            } else {
+                itertools::Either::Right(std::iter::empty())
+            };
+
+            let samples = chunk1_iter
+                .map(|b| F::from_bytes(b))
+                .chain(mid_part)
+                .chain(chunk2.chunks_exact(frame_size).map(|b| F::from_bytes(b)));
+
+            for (out, sample) in data.iter_mut().zip(samples) {
+                *out = sample;
             }
+
+            chunk.commit_all();
         },
         |err| error!("an error occurred on audio stream: {err}"),
         None,

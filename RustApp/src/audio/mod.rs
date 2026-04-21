@@ -103,7 +103,7 @@ impl AppState {
 }
 
 pub trait AudioBytes {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized;
 
@@ -123,15 +123,11 @@ pub trait AudioBytes {
 }
 
 impl AudioBytes for i16 {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized,
     {
-        if bytes.len() == 2 {
-            Some(NativeEndian::read_i16(bytes))
-        } else {
-            None
-        }
+        NativeEndian::read_i16(bytes)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -158,15 +154,11 @@ impl AudioBytes for i16 {
 }
 
 impl AudioBytes for i32 {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized,
     {
-        if bytes.len() == 4 {
-            Some(NativeEndian::read_i32(bytes))
-        } else {
-            None
-        }
+        NativeEndian::read_i32(bytes)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -193,18 +185,18 @@ impl AudioBytes for i32 {
 }
 
 impl AudioBytes for f32 {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized,
     {
         if bytes.len() == 3 {
             // 3 bytes for i24 format
             let val = NativeEndian::read_i24(bytes);
-            Some(val as f32 / (1 << 23) as f32)
+            val as f32 / (1 << 23) as f32
         } else if bytes.len() == 4 {
-            Some(NativeEndian::read_f32(bytes))
+            NativeEndian::read_f32(bytes)
         } else {
-            None
+            unreachable!()
         }
     }
 
@@ -232,15 +224,11 @@ impl AudioBytes for f32 {
 }
 
 impl AudioBytes for u8 {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized,
     {
-        if bytes.len() == 1 {
-            Some(bytes[0])
-        } else {
-            None
-        }
+        bytes[0]
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -265,15 +253,11 @@ impl AudioBytes for u8 {
 }
 
 impl AudioBytes for u32 {
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    fn from_bytes(bytes: &[u8]) -> Self
     where
         Self: Sized,
     {
-        if bytes.len() == 4 {
-            Some(NativeEndian::read_u32(bytes))
-        } else {
-            None
-        }
+        NativeEndian::read_u32(bytes)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
