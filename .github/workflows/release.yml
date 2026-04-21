@@ -3,10 +3,29 @@ name: Create Release
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Extract version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version' ./RustApp/Cargo.toml | head -n 1 | awk -F '"' '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   build-app:
     name: Build Rust App
     runs-on: ${{ matrix.os }}
@@ -93,7 +112,7 @@ jobs:
       # For Linux
       - name: Upload Linux binary
         if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: androidmic-linux
           path: ./RustApp/target/x86_64-unknown-linux-gnu/release/*.AppImage
@@ -102,7 +121,7 @@ jobs:
       # For Windows
       - name: Upload Windows built files
         if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: androidmic-windows
           path: |
@@ -113,7 +132,7 @@ jobs:
       # For macOS
       - name: Upload macOS built files
         if: matrix.platform == 'macos'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: androidmic-macos
           path: |
@@ -123,6 +142,7 @@ jobs:
 
   build-android:
     name: Build Android App
+    needs: get-version
     runs-on: ubuntu-latest
 
     steps:
@@ -151,8 +171,12 @@ jobs:
         working-directory: ./Android
         run: find app/build/outputs -name "*.apk"
 
+      - name: Rename apk
+        working-directory: ./Android
+        run: mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/AndroidMic_${{ needs.get-version.outputs.version }}.apk
+
       - name: Upload Android APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: androidmic-android-apk
           path: ./Android/app/build/outputs/apk/release/*.apk
@@ -160,15 +184,15 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [build-app, build-android]
+    needs: [build-app, build-android, get-version]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: all-artifacts
@@ -176,23 +200,16 @@ jobs:
       - name: Display structure of downloaded files
         run: find all-artifacts -type f | sort
 
-      - name: Extract version from Cargo.toml
-        id: get_version
-        run: |
-          VERSION=$(grep '^version' ./RustApp/Cargo.toml | head -n 1 | awk -F '"' '{print $2}')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ env.VERSION }}
-          name: Release v${{ env.VERSION }}
+          tag_name: ${{ needs.get-version.outputs.version }}
+          name: Release v${{ needs.get-version.outputs.version }}
           draft: true
           generate_release_notes: true
           files: all-artifacts/**/*
           body: |
-            ## AndroidMic v${{ env.VERSION }}
+            ## AndroidMic v${{ needs.get-version.outputs.version }}
 
             ### Release Notes
             <!-- You can add manual notes here, they will be combined with automated notes -->
