@@ -225,13 +225,11 @@ where
 
     for buf in packet
         .buffer
-        .chunks_exact(audio_format.sample_size() * channel_count)
+        .chunks_exact(audio_format.sample_size())
     {
-        for channel in 0..channel_count {
-            let start = channel * audio_format.sample_size();
-            let end = start + audio_format.sample_size();
-            let sample = F::from_bytes(&buf[start..end]).to_f32();
-            result[channel].push(sample);
+        for result in &mut result {
+            let sample = F::from_bytes(buf).to_f32();
+            result.push(sample);
         }
     }
 
