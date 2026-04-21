@@ -6,7 +6,6 @@ struct ResamplerCache {
     input_rate: u32,
     output_rate: u32,
     num_channels: usize,
-    sample_buffer: Vec<Vec<f32>>,
     resampler: rubato::FastFixedIn<f32>,
 }
 
@@ -42,35 +41,41 @@ pub fn resample_f32_stream(
             input_rate: input_sample_rate,
             output_rate: output_sample_rate,
             num_channels: data.len(),
-            sample_buffer: vec![Vec::with_capacity(chunk_size); data.len()],
             resampler,
         });
     }
 
     let cache = resampler_cache.as_mut().unwrap();
-    let mut output: Vec<Vec<f32>> = vec![Vec::new(); data.len()];
 
-    // Append new data into the cache
-    for channel_idx in 0..data.len() {
-        cache.sample_buffer[channel_idx].extend_from_slice(&data[channel_idx]);
-    }
+    let mut chunk_output: Vec<Vec<f32>> = cache.resampler.output_buffer_allocate(true);
 
-    while cache.sample_buffer[0].len() >= chunk_size {
-        let chunk_output = cache.resampler.process(&cache.sample_buffer, None)?;
+    let mut output: Vec<Vec<f32>> =
+        vec![Vec::with_capacity(chunk_output[0].len() * data[0].len() / chunk_size); data.len()];
 
-        // Clear the sample buffer for the next round
-        for channel in &mut cache.sample_buffer {
-            channel.drain(0..chunk_size);
-        }
+    let mut data = data
+        .iter()
+        .map(|e| e.chunks_exact(chunk_size))
+        .collect::<Vec<_>>();
 
-        // Append the resampled data to the output
-        for (channel_idx, channel_data) in chunk_output.iter().enumerate() {
-            if channel_idx < output.len() {
-                output[channel_idx].extend_from_slice(channel_data);
+    let mut buffer = Vec::with_capacity(data.len());
+
+    loop {
+        for chunk in &mut data {
+            if let Some(chunk) = chunk.next() {
+                buffer.push(chunk);
+            } else {
+                return Ok(output);
             }
         }
-    }
 
-    // For each channel, skip the delay samples
-    Ok(output)
+        let (_, frames) = cache
+            .resampler
+            .process_into_buffer(&buffer, &mut chunk_output, None)?;
+
+        for (output, chunk) in output.iter_mut().zip(chunk_output.iter()) {
+            output.extend_from_slice(&chunk[..frames]);
+        }
+
+        buffer.clear();
+    }
 }
