@@ -269,10 +269,8 @@ where
             result.push(F::from_bytes(buf).to_f32());
         } else {
             // For stereo, we merge the two samples into one
-            let left = F::from_bytes(&buf[0..audio_format.sample_size()])
-                .to_f32();
-            let right = F::from_bytes(&buf[audio_format.sample_size()..])
-                .to_f32();
+            let left = F::from_bytes(&buf[0..audio_format.sample_size()]).to_f32();
+            let right = F::from_bytes(&buf[audio_format.sample_size()..]).to_f32();
 
             result.push((left + right) / 2.0); // Mix the two channels
         }

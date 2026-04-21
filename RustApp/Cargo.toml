@@ -124,3 +124,12 @@ tray-icon = "0.21.1"
 
 # [patch."https://github.com/wiiznokes/speexdsp-rs-fork"]
 # speexdsp = { path = "../../speexdsp-rs-fork" }
+
+
+[dev-dependencies]
+criterion = "0.8"
+rand = "0.10"
+
+[[bench]]
+name = "audio"
+harness = false

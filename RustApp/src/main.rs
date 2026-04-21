@@ -1,33 +1,23 @@
 // to not launch a console on Windows, only in release because it blocks all logs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use android_mic::{localize, single_instance};
 use chrono::Local;
 use std::io::Write;
 use std::{fs::File, path::Path};
 
+use android_mic::config::{Args, Config};
+use android_mic::ui::app::run_ui;
+use android_mic::utils::{self, APP, ORG, QUALIFIER};
 use clap::Parser;
-use config::{Args, Config};
 use directories::ProjectDirs;
 use fslock::LockFile;
-use ui::app::run_ui;
-use utils::{APP, ORG, QUALIFIER};
 use zconf::ConfigManager;
 
-use crate::ui::app::Flags;
+use android_mic::ui::app::Flags;
 
 #[macro_use]
 extern crate log;
-
-mod audio;
-mod config;
-mod single_instance;
-mod start_at_login;
-mod streamer;
-mod ui;
-mod utils;
-
-#[macro_use]
-mod localize;
 
 struct DualWriter {
     file: Box<File>,

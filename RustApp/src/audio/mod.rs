@@ -9,7 +9,7 @@ use crate::{
 };
 
 mod denoise_rnnoise;
-mod player;
+pub mod player;
 mod postprocessing;
 pub mod process;
 mod resampler;
