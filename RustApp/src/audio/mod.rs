@@ -285,7 +285,7 @@ impl AudioBytes for u32 {
 
 #[derive(Debug, Clone)]
 pub struct AudioPacketFormat {
-    sample_rate: SampleRate,
-    audio_format: AudioFormat,
-    channel_count: ChannelCount,
+    pub sample_rate: SampleRate,
+    pub audio_format: AudioFormat,
+    pub channel_count: ChannelCount,
 }
