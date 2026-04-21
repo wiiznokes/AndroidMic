@@ -22,11 +22,14 @@ pub fn resample_f32_stream(
     let resample_ratio = output_sample_rate as f64 / input_sample_rate as f64;
     let mut resampler_cache = RESAMPLER_CACHE.lock().unwrap();
 
-    if resampler_cache.is_none()
-        || resampler_cache.as_ref().unwrap().input_rate != input_sample_rate
-        || resampler_cache.as_ref().unwrap().output_rate != output_sample_rate
-        || resampler_cache.as_ref().unwrap().num_channels != data.len()
-    {
+    if match resampler_cache.as_ref() {
+        Some(c) => {
+            c.input_rate != input_sample_rate
+                || c.output_rate != output_sample_rate
+                || c.num_channels != data.len()
+        }
+        None => true,
+    } {
         let resampler = rubato::FastFixedIn::<f32>::new(
             resample_ratio,
             1.0,
