@@ -37,8 +37,6 @@ unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(ANDROID_MIC_FORMAT, values("flatpak"))',
 ] }
 
-[lints.clippy]
-to_string_trait_impl = "allow"
 
 [features]
 default = ["usb", "adb"]

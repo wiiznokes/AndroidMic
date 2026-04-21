@@ -580,7 +580,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_echo(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_echo(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.echo_filters.is_empty() {
             return;
         }
@@ -659,7 +659,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_reverb(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_reverb(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.reverb_combs.is_empty() {
             return;
         }
@@ -727,7 +727,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_pitch_shift(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_pitch_shift(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.pitch_shifters.is_empty() {
             return;
         }
@@ -783,7 +783,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_walkie_talkie(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_walkie_talkie(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.walkie_filters.is_empty() {
             return;
         }
@@ -842,7 +842,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_popstar(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_popstar(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.popstar_filters.is_empty() {
             return;
         }
@@ -936,6 +936,7 @@ impl AudioPostProcessor {
         }
     }
 
+    #[expect(clippy::too_many_arguments)]
     fn configure_flanger(
         &mut self,
         sample_rate: u32,
@@ -980,7 +981,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_flanger(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_flanger(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.flanger_filters.is_empty() {
             return;
         }
@@ -1001,6 +1002,7 @@ impl AudioPostProcessor {
         }
     }
 
+    #[expect(clippy::too_many_arguments)]
     fn configure_phaser(
         &mut self,
         sample_rate: u32,
@@ -1043,7 +1045,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_phaser(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_phaser(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.phaser_filters.is_empty() {
             return;
         }
@@ -1127,7 +1129,7 @@ impl AudioPostProcessor {
         }
     }
 
-    fn apply_vocoder(&mut self, buffer: &mut Vec<Vec<f32>>) {
+    fn apply_vocoder(&mut self, buffer: &mut [Vec<f32>]) {
         if buffer.is_empty() || self.vocoder_bands.is_empty() {
             return;
         }
@@ -1199,7 +1201,7 @@ static AUDIO_POST_PROCESSOR: LazyLock<Mutex<AudioPostProcessor>> =
 
 // apply echo effect to audio buffer in place
 pub fn post_apply_echo(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     delay_ms: u32,
     decay: f32,
@@ -1213,7 +1215,7 @@ pub fn post_apply_echo(
 
 // apply reverb effect to audio buffer in place
 pub fn post_apply_reverb(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     room_size: f32,
     damping: f32,
@@ -1226,7 +1228,7 @@ pub fn post_apply_reverb(
 
 // apply pitch shift effect to audio buffer in place
 pub fn post_apply_pitch_shift(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     pitch_ratio: f32,
     mix: f32,
@@ -1238,7 +1240,7 @@ pub fn post_apply_pitch_shift(
 
 // apply walkie-talkie effect to audio buffer in place
 pub fn post_apply_walkie_talkie(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     center_freq: f32,
     q: f32,
@@ -1251,12 +1253,7 @@ pub fn post_apply_walkie_talkie(
 }
 
 // apply popstar effect to audio buffer in place
-pub fn post_apply_popstar(
-    buffer: &mut Vec<Vec<f32>>,
-    sample_rate: u32,
-    rms_threshold: f32,
-    mix: f32,
-) {
+pub fn post_apply_popstar(buffer: &mut [Vec<f32>], sample_rate: u32, rms_threshold: f32, mix: f32) {
     let mut processor = AUDIO_POST_PROCESSOR.lock().unwrap();
     processor.configure_popstar(sample_rate, buffer.len(), rms_threshold, mix);
     processor.apply_popstar(buffer);
@@ -1264,7 +1261,7 @@ pub fn post_apply_popstar(
 
 // apply flanger effect to audio buffer in place
 pub fn post_apply_flanger(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     rate_hz: f32,
     min_delay_ms: f32,
@@ -1287,7 +1284,7 @@ pub fn post_apply_flanger(
 
 // apply phaser effect to audio buffer in place
 pub fn post_apply_phaser(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     rate_hz: f32,
     f_min: f32,
@@ -1310,7 +1307,7 @@ pub fn post_apply_phaser(
 
 // apply vocoder effect to audio buffer in place
 pub fn post_apply_vocoder(
-    buffer: &mut Vec<Vec<f32>>,
+    buffer: &mut [Vec<f32>],
     sample_rate: u32,
     num_bands: usize,
     carrier_freq: f32,

@@ -117,8 +117,7 @@ impl AccessoryInterfaceExt for Interface {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "Expected 2 bytes response for protocol version",
-            )
-            .into());
+            ));
         }
 
         Ok(u16::from_le_bytes([res[0], res[1]]))
