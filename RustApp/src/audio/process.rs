@@ -230,7 +230,7 @@ where
         for channel in 0..channel_count {
             let start = channel * audio_format.sample_size();
             let end = start + audio_format.sample_size();
-            let sample = F::from_bytes(&buf[start..end]).unwrap().to_f32();
+            let sample = F::from_bytes(&buf[start..end]).to_f32();
             result[channel].push(sample);
         }
     }
@@ -266,15 +266,11 @@ where
     {
         if channel_count == 1 {
             // For mono, there's just one sample
-            result.push(F::from_bytes(buf).unwrap().to_f32());
+            result.push(F::from_bytes(buf).to_f32());
         } else {
             // For stereo, we merge the two samples into one
-            let left = F::from_bytes(&buf[0..audio_format.sample_size()])
-                .unwrap()
-                .to_f32();
-            let right = F::from_bytes(&buf[audio_format.sample_size()..])
-                .unwrap()
-                .to_f32();
+            let left = F::from_bytes(&buf[0..audio_format.sample_size()]).to_f32();
+            let right = F::from_bytes(&buf[audio_format.sample_size()..]).to_f32();
 
             result.push((left + right) / 2.0); // Mix the two channels
         }
