@@ -6,6 +6,8 @@ struct ResamplerCache {
     input_rate: u32,
     output_rate: u32,
     num_channels: usize,
+    unprocessed_buffer: Vec<Vec<f32>>,
+    output_buffer: Vec<Vec<f32>>,
     resampler: rubato::FastFixedIn<f32>,
 }
 
@@ -41,38 +43,79 @@ pub fn resample_f32_stream(
             input_rate: input_sample_rate,
             output_rate: output_sample_rate,
             num_channels: data.len(),
+            unprocessed_buffer: vec![Vec::new(); data.len()],
+            output_buffer: resampler.output_buffer_allocate(true),
             resampler,
         });
     }
 
     let cache = resampler_cache.as_mut().unwrap();
 
-    let mut chunk_output: Vec<Vec<f32>> = cache.resampler.output_buffer_allocate(true);
-
     let mut output: Vec<Vec<f32>> =
-        vec![Vec::with_capacity(chunk_output[0].len() * data[0].len() / chunk_size); data.len()];
+        vec![
+            Vec::with_capacity(cache.output_buffer[0].len() * data[0].len() / chunk_size);
+            data.len()
+        ];
+
+    let start = if !cache.unprocessed_buffer[0].is_empty() {
+        let missing = chunk_size - cache.unprocessed_buffer[0].len();
+        if data[0].len() >= missing {
+            for (data, unprocessed_buffer) in data.iter().zip(cache.unprocessed_buffer.iter_mut()) {
+                unprocessed_buffer.extend_from_slice(&data[0..missing]);
+            }
+
+            let (_, frames) = cache.resampler.process_into_buffer(
+                &cache.unprocessed_buffer,
+                &mut cache.output_buffer,
+                None,
+            )?;
+
+            for (output, chunk) in output.iter_mut().zip(cache.output_buffer.iter()) {
+                output.extend_from_slice(&chunk[..frames]);
+            }
+
+            for channel in &mut cache.unprocessed_buffer {
+                channel.clear();
+            }
+            missing
+        } else {
+            0
+        }
+    } else {
+        0
+    };
 
     let mut data = data
         .iter()
-        .map(|e| e.chunks_exact(chunk_size))
+        .map(|channel_data| channel_data[start..].chunks_exact(chunk_size))
         .collect::<Vec<_>>();
 
     let mut buffer = Vec::with_capacity(data.len());
 
+    let mut done = false;
     loop {
         for chunk in &mut data {
             if let Some(chunk) = chunk.next() {
                 buffer.push(chunk);
             } else {
-                return Ok(output);
+                done = true;
             }
         }
 
-        let (_, frames) = cache
-            .resampler
-            .process_into_buffer(&buffer, &mut chunk_output, None)?;
+        if done {
+            for (chunk, unprocessed_buffer) in data.iter().zip(cache.unprocessed_buffer.iter_mut())
+            {
+                unprocessed_buffer.extend_from_slice(chunk.remainder());
+            }
+            return Ok(output);
+        }
 
-        for (output, chunk) in output.iter_mut().zip(chunk_output.iter()) {
+        let (_, frames) =
+            cache
+                .resampler
+                .process_into_buffer(&buffer, &mut cache.output_buffer, None)?;
+
+        for (output, chunk) in output.iter_mut().zip(cache.output_buffer.iter()) {
             output.extend_from_slice(&chunk[..frames]);
         }
 
