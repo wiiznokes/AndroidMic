@@ -12,7 +12,7 @@ mod denoise_rnnoise;
 pub mod player;
 mod postprocessing;
 pub mod process;
-mod resampler;
+pub mod resampler;
 mod speexdsp;
 
 /// Audio processing parameters

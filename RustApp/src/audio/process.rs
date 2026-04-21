@@ -201,7 +201,7 @@ impl AudioStream {
     }
 }
 
-fn convert_packet_to_f32(packet: &AudioPacketMessage) -> anyhow::Result<Vec<Vec<f32>>> {
+pub fn convert_packet_to_f32(packet: &AudioPacketMessage) -> anyhow::Result<Vec<Vec<f32>>> {
     let audio_format = AudioFormat::from_android_format(packet.audio_format).unwrap();
     match audio_format {
         AudioFormat::U8 => convert_packet_to_f32_internal::<u8>(packet),

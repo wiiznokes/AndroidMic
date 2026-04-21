@@ -1,12 +1,16 @@
 use std::io::Write;
 
 use android_mic::{
-    audio::{AudioPacketFormat, AudioProcessParams, player::process_audio},
+    audio::{
+        AudioPacketFormat, AudioProcessParams, player::process_audio,
+        process::convert_packet_to_f32, resampler::resample_f32_stream,
+    },
     config::{AudioEffect, AudioFormat, ChannelCount, SampleRate},
     streamer::{AudioPacketMessage, AudioStream},
 };
 use criterion::{Criterion, criterion_group, criterion_main};
-use rtrb::{Producer, RingBuffer};
+
+use rtrb::RingBuffer;
 
 fn make_random(size: usize) -> Vec<u8> {
     use rand::rngs::StdRng;
@@ -17,11 +21,8 @@ fn make_random(size: usize) -> Vec<u8> {
     let mut v = vec![0; size];
 
     rng.fill_bytes(&mut v);
-    v
-}
 
-fn feed_producer(producer: &mut Producer<u8>, src: &[u8]) {
-    producer.write(src).unwrap();
+    v
 }
 
 const SHARED_BUFFER_SIZE: usize = 48000 * 2;
@@ -36,7 +37,7 @@ fn bench_player(c: &mut Criterion) {
         let source = make_random(48000);
 
         b.iter(|| {
-            feed_producer(&mut producer, &source);
+            producer.write(&source).unwrap();
 
             process_audio::<i16>(&mut output, &mut consumer, 480);
         });
@@ -72,7 +73,7 @@ fn bench_process(c: &mut Criterion) {
 
             let packet = AudioPacketMessage {
                 buffer: source,
-                sample_rate: 48000,
+                sample_rate: 44100,
                 channel_count: 1,
                 audio_format: 2,
             };
@@ -85,5 +86,24 @@ fn bench_process(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_player, bench_process);
+fn bench_resampling(c: &mut Criterion) {
+    c.bench_function("bench_resampling", |b| {
+        let source = make_random(3840);
+
+        let packet = AudioPacketMessage {
+            buffer: source,
+            sample_rate: 44100,
+            channel_count: 1,
+            audio_format: 2,
+        };
+
+        let buffer = convert_packet_to_f32(&packet).unwrap();
+
+        b.iter(|| {
+            resample_f32_stream(&buffer, 44100, 48000).unwrap();
+        });
+    });
+}
+
+criterion_group!(benches, bench_player, bench_process, bench_resampling);
 criterion_main!(benches);
