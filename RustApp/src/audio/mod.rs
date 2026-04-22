@@ -8,13 +8,12 @@ use crate::{
     ui::app::{AppState, Stream},
 };
 
-mod denoise_rnnoise;
+pub mod denoise_rnnoise;
 pub mod player;
 mod postprocessing;
 pub mod process;
 pub mod resampler;
-// pub mod resampler2;
-mod speexdsp;
+pub mod speexdsp;
 
 /// Audio processing parameters
 #[derive(Clone, Debug)]

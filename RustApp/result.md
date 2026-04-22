@@ -13,3 +13,9 @@ Performance has improved.
 bench_resampling time: [15.149 µs 15.495 µs 15.876 µs]
 change: [−24.540% −22.301% −20.162%] (p = 0.00 < 0.05)
 Performance has improved.
+
+## For speexdsp
+
+# Linux, master
+
+bench_speexdsp time: [97.000 µs 97.257 µs 97.523 µs]
