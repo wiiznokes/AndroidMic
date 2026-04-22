@@ -123,6 +123,8 @@ tray-icon = "0.22"
 # [patch."https://github.com/wiiznokes/speexdsp-rs-fork"]
 # speexdsp = { path = "../../speexdsp-rs-fork" }
 
+[patch."https://github.com/pop-os/cosmic-text.git"]
+cosmic-text = { git = "https://github.com/pop-os//cosmic-text.git", rev = "4fd11f0e5e076fc16f5c7c239da22ac99a3a60b9" }
 
 [dev-dependencies]
 criterion = "0.8"
