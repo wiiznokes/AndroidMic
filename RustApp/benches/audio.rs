@@ -53,11 +53,11 @@ fn bench_process(c: &mut Criterion) {
 
         let audio_params = AudioProcessParams {
             target_format: AudioPacketFormat {
-                sample_rate: SampleRate::S48000,
+                sample_rate: SampleRate::S16000,
                 audio_format: AudioFormat::I16,
                 channel_count: ChannelCount::Mono,
             },
-            denoise: None,
+            denoise: Some(DenoiseKind::Speexdsp),
             amplify: None,
             post_effect: AudioEffect::NoEffect,
             speex_noise_suppress: -30,

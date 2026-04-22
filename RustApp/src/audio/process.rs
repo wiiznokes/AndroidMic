@@ -7,7 +7,7 @@ use crate::{
             post_apply_echo, post_apply_flanger, post_apply_phaser, post_apply_pitch_shift,
             post_apply_popstar, post_apply_reverb, post_apply_vocoder, post_apply_walkie_talkie,
         },
-        resampler::ResamplerCache,
+        resampler::{ResamplerCache, resample_f32_stream_owned},
         speexdsp::{SPEEXDSP_SAMPLE_RATE, process_speex_f32_stream},
     },
     config::{AudioEffect, AudioFormat, DenoiseKind},
@@ -74,18 +74,19 @@ impl AudioStream {
         if let Some(denoise) = &config.denoise {
             match denoise {
                 DenoiseKind::Rnnoise => {
-                    let prepared_buffer = if current_sample_rate == DENOISE_RNNOISE_SAMPLE_RATE {
-                        Cow::Borrowed(&buffer)
-                    } else {
-                        let tmp = resample_f32_stream(
-                            &buffer,
-                            current_sample_rate as usize,
-                            DENOISE_RNNOISE_SAMPLE_RATE as usize,
-                            &mut cache.resample_rnnoise_cache,
-                        )?;
-                        current_sample_rate = DENOISE_RNNOISE_SAMPLE_RATE;
-                        Cow::Owned(tmp)
-                    };
+                    let prepared_buffer: Cow<'_, [Vec<f32>]> =
+                        if current_sample_rate == DENOISE_RNNOISE_SAMPLE_RATE {
+                            Cow::Borrowed(&buffer)
+                        } else {
+                            let tmp = resample_f32_stream(
+                                &buffer,
+                                current_sample_rate as usize,
+                                DENOISE_RNNOISE_SAMPLE_RATE as usize,
+                                &mut cache.resample_rnnoise_cache,
+                            )?;
+                            current_sample_rate = DENOISE_RNNOISE_SAMPLE_RATE;
+                            Cow::Borrowed(tmp)
+                        };
 
                     // denoise the audio stream
                     buffer = denoise_f32_stream(&prepared_buffer)?;
@@ -95,18 +96,19 @@ impl AudioStream {
         }
 
         if config.is_speex_used() {
-            let prepared_buffer = if current_sample_rate == SPEEXDSP_SAMPLE_RATE {
-                Cow::Borrowed(&buffer)
-            } else {
-                let tmp = resample_f32_stream(
-                    &buffer,
-                    current_sample_rate as usize,
-                    SPEEXDSP_SAMPLE_RATE as usize,
-                    &mut cache.resample_speexdsp_cache,
-                )?;
-                current_sample_rate = SPEEXDSP_SAMPLE_RATE;
-                Cow::Owned(tmp)
-            };
+            let prepared_buffer: Cow<'_, [Vec<f32>]> =
+                if current_sample_rate == SPEEXDSP_SAMPLE_RATE {
+                    Cow::Borrowed(&buffer)
+                } else {
+                    let tmp = resample_f32_stream(
+                        &buffer,
+                        current_sample_rate as usize,
+                        SPEEXDSP_SAMPLE_RATE as usize,
+                        &mut cache.resample_speexdsp_cache,
+                    )?;
+                    current_sample_rate = SPEEXDSP_SAMPLE_RATE;
+                    Cow::Borrowed(tmp)
+                };
 
             buffer = process_speex_f32_stream(&prepared_buffer, config)?;
         }
@@ -114,7 +116,7 @@ impl AudioStream {
         buffer = if config.target_format.sample_rate.to_number() == current_sample_rate {
             buffer
         } else {
-            resample_f32_stream(
+            resample_f32_stream_owned(
                 &buffer,
                 current_sample_rate as usize,
                 config.target_format.sample_rate.to_number() as usize,

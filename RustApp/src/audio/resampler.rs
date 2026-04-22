@@ -3,27 +3,44 @@ use rubato::{Indexing, Resampler};
 pub struct ResamplerCache {
     input_rate: usize,
     output_rate: usize,
-    num_channels: usize,
+    nb_channels: usize,
     unprocessed_buffer: Vec<Vec<f32>>,
     resampler: rubato::Fft<f32>,
+    result: Vec<Vec<f32>>,
 }
 
 const CHUNK_SIZE: usize = 1024;
 
-pub fn resample_f32_stream(
+pub fn resample_f32_stream_owned(
     data: &[Vec<f32>],
     input_sample_rate: usize,
     output_sample_rate: usize,
     cache: &mut Option<ResamplerCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
+    resample_f32_stream(data, input_sample_rate, output_sample_rate, cache)?;
+
+    let cache = cache.as_mut().unwrap();
+
+    Ok(std::mem::replace(
+        &mut cache.result,
+        vec![Vec::new(); cache.nb_channels],
+    ))
+}
+
+pub fn resample_f32_stream<'a>(
+    data: &[Vec<f32>],
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+    cache: &'a mut Option<ResamplerCache>,
+) -> anyhow::Result<&'a mut [Vec<f32>]> {
     let input_len = data[0].len();
     let nb_channel = data.len();
-    
+
     if match cache {
         Some(c) => {
             c.input_rate != input_sample_rate
                 || c.output_rate != output_sample_rate
-                || c.num_channels != data.len()
+                || c.nb_channels != data.len()
         }
         None => true,
     } {
@@ -39,9 +56,10 @@ pub fn resample_f32_stream(
         *cache = Some(ResamplerCache {
             input_rate: input_sample_rate,
             output_rate: output_sample_rate,
-            num_channels: nb_channel,
+            nb_channels: nb_channel,
             unprocessed_buffer: vec![Vec::with_capacity(resampler.input_frames_max()); nb_channel],
             resampler,
+            result: vec![Vec::new(); nb_channel],
         });
     };
 
@@ -60,21 +78,18 @@ pub fn resample_f32_stream(
         max_output_frames * estimated_chunks
     };
 
-    let mut output: Vec<Vec<f32>> = vec![
-        #[allow(clippy::uninit_vec)]
-        {
-            let mut v = Vec::with_capacity(output_len);
-            // safety: we only write in this function and we set the real len at the end
-            unsafe {
-                v.set_len(output_len);
-            }
-            v
-        };
-        data.len()
-    ];
+    for v in &mut cache.result {
+        if v.capacity() < output_len {
+            v.reserve_exact(output_len - v.len());
+        }
+        // safety: we only write in this function and we set the real len at the end
+        unsafe {
+            v.set_len(output_len);
+        }
+    }
 
     let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
-        &mut output,
+        &mut cache.result,
         nb_channel,
         output_len,
     )
@@ -115,7 +130,7 @@ pub fn resample_f32_stream(
     // workarround for the lifetime issue
     // because in process_into_buffer, buffer_out and buffer_in must have the same lifetime.
     let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
-        &mut output,
+        &mut cache.result,
         nb_channel,
         output_len,
     )
@@ -148,9 +163,9 @@ pub fn resample_f32_stream(
         unprocessed_buffer.extend_from_slice(&chunk[input_offset..]);
     }
 
-    for channel in &mut output {
+    for channel in &mut cache.result {
         channel.truncate(output_offset);
     }
 
-    Ok(output)
+    Ok(&mut cache.result)
 }
