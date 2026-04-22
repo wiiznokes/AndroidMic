@@ -1,0 +1,15 @@
+# Linux, master
+
+bench_resampling time: [22.339 µs 22.393 µs 22.447 µs]
+
+# Linux, rubato 0.16, opti no copy input
+
+bench_resampling time: [19.860 µs 20.463 µs 21.003 µs]
+change: [−9.3247% −7.3958% −5.7062%] (p = 0.00 < 0.05)
+Performance has improved.
+
+# Linux, rubato 0.16, opti no copy input
+
+bench_resampling time: [15.149 µs 15.495 µs 15.876 µs]
+change: [−24.540% −22.301% −20.162%] (p = 0.00 < 0.05)
+Performance has improved.

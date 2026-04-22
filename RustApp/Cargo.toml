@@ -89,7 +89,7 @@ nusb = { version = "0.2.2", optional = true, features = ["tokio", "smol"] }
 serde_with = "3"
 strum = { version = "0.28", features = ["derive"] }
 resvg = "0.47"
-rubato = "0.16"
+rubato = "2"
 #https://github.com/tauri-apps/fix-path-env-rs/pull/19
 fix-path-env = { git = "https://github.com/wiiznokes/fix-path-env-rs", rev = "8612a0d8590843dbe9c6326d26292963e6a97f2a" }
 env_logger = "0.11"

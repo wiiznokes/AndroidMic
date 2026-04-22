@@ -58,8 +58,8 @@ impl AudioStream {
                     } else {
                         let tmp = resample_f32_stream(
                             &buffer,
-                            current_sample_rate,
-                            DENOISE_RNNOISE_SAMPLE_RATE,
+                            current_sample_rate as usize,
+                            DENOISE_RNNOISE_SAMPLE_RATE as usize,
                         )?;
                         current_sample_rate = DENOISE_RNNOISE_SAMPLE_RATE;
                         Cow::Owned(tmp)
@@ -76,7 +76,7 @@ impl AudioStream {
             let prepared_buffer = if current_sample_rate == SPEEXDSP_SAMPLE_RATE {
                 Cow::Borrowed(&buffer)
             } else {
-                let tmp = resample_f32_stream(&buffer, current_sample_rate, SPEEXDSP_SAMPLE_RATE)?;
+                let tmp = resample_f32_stream(&buffer, current_sample_rate as usize, SPEEXDSP_SAMPLE_RATE as usize)?;
                 current_sample_rate = SPEEXDSP_SAMPLE_RATE;
                 Cow::Owned(tmp)
             };
@@ -89,8 +89,8 @@ impl AudioStream {
         } else {
             resample_f32_stream(
                 &buffer,
-                current_sample_rate,
-                config.target_format.sample_rate.to_number(),
+                current_sample_rate as usize,
+                config.target_format.sample_rate.to_number() as usize,
             )?
         };
 
@@ -223,10 +223,7 @@ where
     // Initialize a vector to hold the results for each channel
     let mut result = vec![Vec::with_capacity(samples_per_channel); channel_count];
 
-    for buf in packet
-        .buffer
-        .chunks_exact(audio_format.sample_size())
-    {
+    for buf in packet.buffer.chunks_exact(audio_format.sample_size()) {
         for result in &mut result {
             let sample = F::from_bytes(buf).to_f32();
             result.push(sample);

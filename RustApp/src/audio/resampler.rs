@@ -1,27 +1,29 @@
 use std::sync::{LazyLock, Mutex};
 
-use rubato::Resampler;
+use rubato::{Indexing, Resampler};
 
 struct ResamplerCache {
-    input_rate: u32,
-    output_rate: u32,
+    input_rate: usize,
+    output_rate: usize,
     num_channels: usize,
     unprocessed_buffer: Vec<Vec<f32>>,
-    output_buffer: Vec<Vec<f32>>,
-    resampler: rubato::FastFixedIn<f32>,
+    resampler: rubato::Fft<f32>,
 }
 
 static RESAMPLER_CACHE: LazyLock<Mutex<Option<ResamplerCache>>> =
     LazyLock::new(|| Mutex::new(None));
 
+const CHUNK_SIZE: usize = 1024;
+
 pub fn resample_f32_stream(
     data: &[Vec<f32>],
-    input_sample_rate: u32,
-    output_sample_rate: u32,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    let chunk_size = 1024;
-    let resample_ratio = output_sample_rate as f64 / input_sample_rate as f64;
     let mut resampler_cache = RESAMPLER_CACHE.lock().unwrap();
+
+    let input_len = data[0].len();
+    let nb_channel = data.len();
 
     if match resampler_cache.as_ref() {
         Some(c) => {
@@ -31,94 +33,129 @@ pub fn resample_f32_stream(
         }
         None => true,
     } {
-        let resampler = rubato::FastFixedIn::<f32>::new(
-            resample_ratio,
-            1.0,
-            rubato::PolynomialDegree::Cubic,
-            chunk_size,
-            data.len(),
+        let resampler = rubato::Fft::new(
+            input_sample_rate,
+            output_sample_rate,
+            CHUNK_SIZE,
+            1,
+            nb_channel,
+            rubato::FixedSync::Both,
         )?;
 
         *resampler_cache = Some(ResamplerCache {
             input_rate: input_sample_rate,
             output_rate: output_sample_rate,
-            num_channels: data.len(),
-            unprocessed_buffer: vec![Vec::new(); data.len()],
-            output_buffer: resampler.output_buffer_allocate(true),
+            num_channels: nb_channel,
+            unprocessed_buffer: vec![Vec::with_capacity(resampler.input_frames_max()); nb_channel],
             resampler,
         });
     }
 
     let cache = resampler_cache.as_mut().unwrap();
+    let ResamplerCache {
+        resampler,
+        unprocessed_buffer,
+        ..
+    } = cache;
 
-    let mut output: Vec<Vec<f32>> =
-        vec![
-            Vec::with_capacity(cache.output_buffer[0].len() * data[0].len() / chunk_size);
-            data.len()
-        ];
+    let needed = resampler.input_frames_next();
 
-    let start = if !cache.unprocessed_buffer[0].is_empty() {
-        let missing = chunk_size - cache.unprocessed_buffer[0].len();
-        if data[0].len() >= missing {
-            for (data, unprocessed_buffer) in data.iter().zip(cache.unprocessed_buffer.iter_mut()) {
+    let output_len = {
+        let max_output_frames = cache.resampler.output_frames_max();
+        let estimated_chunks = (input_len + unprocessed_buffer[0].len()) / needed + 2;
+        max_output_frames * estimated_chunks
+    };
+
+    let mut output: Vec<Vec<f32>> = vec![
+        {
+            let mut v = Vec::with_capacity(output_len);
+            // safety: we only write in this function and we set the real len at the end
+            unsafe {
+                v.set_len(output_len);
+            }
+            v
+        };
+        data.len()
+    ];
+
+    let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
+        &mut output,
+        nb_channel,
+        output_len,
+    )
+    .unwrap();
+
+    let mut input_offset = 0;
+    let mut output_offset = 0;
+
+    if !unprocessed_buffer[0].is_empty() {
+        let missing = needed - unprocessed_buffer[0].len();
+        if input_len >= missing {
+            for (data, unprocessed_buffer) in data.iter().zip(unprocessed_buffer.iter_mut()) {
                 unprocessed_buffer.extend_from_slice(&data[0..missing]);
             }
 
-            let (_, frames) = cache.resampler.process_into_buffer(
-                &cache.unprocessed_buffer,
-                &mut cache.output_buffer,
-                None,
-            )?;
+            let buffer_in_leftover =
+                rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new(
+                    unprocessed_buffer,
+                    nb_channel,
+                    needed,
+                )
+                .unwrap();
 
-            for (output, chunk) in output.iter_mut().zip(cache.output_buffer.iter()) {
-                output.extend_from_slice(&chunk[..frames]);
-            }
+            let (_, frames) = cache
+                .resampler
+                .process_into_buffer(&buffer_in_leftover, &mut buffer_out, None)
+                .unwrap();
 
-            for channel in &mut cache.unprocessed_buffer {
+            output_offset = frames;
+
+            for channel in unprocessed_buffer.iter_mut() {
                 channel.clear();
             }
-            missing
-        } else {
-            0
+            input_offset = missing;
         }
-    } else {
-        0
     };
 
-    let mut data = data
-        .iter()
-        .map(|channel_data| channel_data[start..].chunks_exact(chunk_size))
-        .collect::<Vec<_>>();
+    // workarround for the lifetime issue
+    // because in process_into_buffer, buffer_out and buffer_in must have the same lifetime.
+    let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
+        &mut output,
+        nb_channel,
+        output_len,
+    )
+    .unwrap();
 
-    let mut buffer = Vec::with_capacity(data.len());
+    let buffer_in = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new(
+        data, nb_channel, input_len,
+    )
+    .unwrap();
 
-    let mut done = false;
-    loop {
-        for chunk in &mut data {
-            if let Some(chunk) = chunk.next() {
-                buffer.push(chunk);
-            } else {
-                done = true;
-            }
-        }
+    while (input_len - input_offset) >= needed {
+        let indexing = Indexing {
+            input_offset,
+            output_offset,
+            partial_len: None,
+            active_channels_mask: None,
+        };
 
-        if done {
-            for (chunk, unprocessed_buffer) in data.iter().zip(cache.unprocessed_buffer.iter_mut())
-            {
-                unprocessed_buffer.extend_from_slice(chunk.remainder());
-            }
-            return Ok(output);
-        }
+        let (_, frames) = cache
+            .resampler
+            .process_into_buffer(&buffer_in, &mut buffer_out, Some(&indexing))
+            .unwrap();
 
-        let (_, frames) =
-            cache
-                .resampler
-                .process_into_buffer(&buffer, &mut cache.output_buffer, None)?;
-
-        for (output, chunk) in output.iter_mut().zip(cache.output_buffer.iter()) {
-            output.extend_from_slice(&chunk[..frames]);
-        }
-
-        buffer.clear();
+        input_offset += needed;
+        output_offset += frames;
     }
+
+    for (chunk, unprocessed_buffer) in data.iter().zip(unprocessed_buffer.iter_mut()) {
+        unprocessed_buffer.clear();
+        unprocessed_buffer.extend_from_slice(&chunk[input_offset..]);
+    }
+
+    for channel in &mut output {
+        channel.truncate(output_offset);
+    }
+
+    Ok(output)
 }
