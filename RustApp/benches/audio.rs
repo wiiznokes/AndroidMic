@@ -2,8 +2,10 @@ use std::io::Write;
 
 use android_mic::{
     audio::{
-        AudioPacketFormat, AudioProcessParams, player::process_audio,
-        process::convert_packet_to_f32, resampler::resample_f32_stream,
+        AudioPacketFormat, AudioProcessParams,
+        player::process_audio,
+        process::{ProcessCache, convert_packet_to_f32},
+        resampler::resample_f32_stream,
         speexdsp::process_speex_f32_stream,
     },
     config::{AudioEffect, AudioFormat, ChannelCount, DenoiseKind, SampleRate},
@@ -69,6 +71,8 @@ fn bench_process(c: &mut Criterion) {
 
         let mut audio_stream = AudioStream::new(producer, audio_params, false);
 
+        let mut cache = ProcessCache::new();
+
         b.iter(|| {
             let source = make_random(3840);
 
@@ -79,7 +83,9 @@ fn bench_process(c: &mut Criterion) {
                 audio_format: 2,
             };
 
-            audio_stream.process_audio_packet(packet).unwrap();
+            audio_stream
+                .process_audio_packet(packet, &mut cache)
+                .unwrap();
 
             let chunk = consumer.read_chunk(consumer.slots()).unwrap();
             chunk.commit_all();
@@ -100,8 +106,10 @@ fn bench_resampling(c: &mut Criterion) {
 
         let buffer = convert_packet_to_f32(&packet).unwrap();
 
+        let mut cache = None;
+
         b.iter(|| {
-            resample_f32_stream(&buffer, 44100, 48000).unwrap();
+            resample_f32_stream(&buffer, 44100, 48000, &mut cache).unwrap();
         });
     });
 }

@@ -1,8 +1,6 @@
-use std::sync::{LazyLock, Mutex};
-
 use rubato::{Indexing, Resampler};
 
-struct ResamplerCache {
+pub struct ResamplerCache {
     input_rate: usize,
     output_rate: usize,
     num_channels: usize,
@@ -10,22 +8,18 @@ struct ResamplerCache {
     resampler: rubato::Fft<f32>,
 }
 
-static RESAMPLER_CACHE: LazyLock<Mutex<Option<ResamplerCache>>> =
-    LazyLock::new(|| Mutex::new(None));
-
 const CHUNK_SIZE: usize = 1024;
 
 pub fn resample_f32_stream(
     data: &[Vec<f32>],
     input_sample_rate: usize,
     output_sample_rate: usize,
+    cache: &mut Option<ResamplerCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    let mut resampler_cache = RESAMPLER_CACHE.lock().unwrap();
-
     let input_len = data[0].len();
     let nb_channel = data.len();
-
-    if match resampler_cache.as_ref() {
+    
+    if match cache {
         Some(c) => {
             c.input_rate != input_sample_rate
                 || c.output_rate != output_sample_rate
@@ -42,16 +36,16 @@ pub fn resample_f32_stream(
             rubato::FixedSync::Both,
         )?;
 
-        *resampler_cache = Some(ResamplerCache {
+        *cache = Some(ResamplerCache {
             input_rate: input_sample_rate,
             output_rate: output_sample_rate,
             num_channels: nb_channel,
             unprocessed_buffer: vec![Vec::with_capacity(resampler.input_frames_max()); nb_channel],
             resampler,
         });
-    }
+    };
 
-    let cache = resampler_cache.as_mut().unwrap();
+    let cache = cache.as_mut().unwrap();
     let ResamplerCache {
         resampler,
         unprocessed_buffer,
@@ -67,6 +61,7 @@ pub fn resample_f32_stream(
     };
 
     let mut output: Vec<Vec<f32>> = vec![
+        #[allow(clippy::uninit_vec)]
         {
             let mut v = Vec::with_capacity(output_len);
             // safety: we only write in this function and we set the real len at the end
