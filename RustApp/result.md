@@ -1,3 +1,5 @@
+## For resampling
+
 # Linux, master
 
 bench_resampling time: [22.339 µs 22.393 µs 22.447 µs]
@@ -14,11 +16,19 @@ bench_resampling time: [15.149 µs 15.495 µs 15.876 µs]
 change: [−24.540% −22.301% −20.162%] (p = 0.00 < 0.05)
 Performance has improved.
 
+# Windows, rubato 2.0
+
+bench_resampling time: [14.344 µs 14.373 µs 14.411 µs]
+
 ## For speexdsp
 
 # Linux, master
 
 bench_speexdsp time: [97.000 µs 97.257 µs 97.523 µs]
+
+# Windows, master
+
+bench_speexdsp time: [112.83 µs 113.34 µs 114.04 µs]
 
 ## For process
 
@@ -33,7 +43,6 @@ bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 - [ ] speexdsp
 - [ ] rnnoise
 - [ ] writting to the ring buff
-
 
 - https://crates.io/crates/ringbuf
 - https://crates.io/crates/ringbuffer

@@ -180,6 +180,7 @@ criterion_group!(
     bench_player,
     bench_process,
     bench_resampling,
-    bench_speexdsp
+    bench_speexdsp,
+    bench_rnnoise,
 );
 criterion_main!(benches);
