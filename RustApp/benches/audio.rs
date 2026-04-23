@@ -165,12 +165,12 @@ fn bench_rnnoise(c: &mut Criterion) {
     });
 }
 
+use pprof::criterion::{Output, PProfProfiler};
+
 criterion_group!(
-    benches,
-    bench_player,
-    bench_process,
-    bench_resampling,
-    bench_speexdsp,
-    bench_rnnoise,
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = bench_player, bench_process, bench_resampling, bench_speexdsp, bench_rnnoise,
 );
+
 criterion_main!(benches);

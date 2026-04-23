@@ -125,9 +125,14 @@ tray-icon = "0.21.1"
 
 
 [dev-dependencies]
-criterion = "0.8"
+criterion = "0.5"
 rand = "0.10"
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 
 [[bench]]
 name = "audio"
 harness = false
+
+
+[profile.bench]
+debug = true
