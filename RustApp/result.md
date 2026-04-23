@@ -26,3 +26,10 @@ bench_speexdsp time: [97.000 µs 97.257 µs 97.523 µs]
 
 bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 
+## Opti plan
+
+- [ ] test ringbuffer instead of rtrb
+- [ ] add optimization flag when vendoring speexdsp
+- [ ] speexdsp
+- [ ] rnnoise
+- [ ] writting to the ring buff
