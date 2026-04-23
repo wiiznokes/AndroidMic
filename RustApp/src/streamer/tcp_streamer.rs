@@ -9,7 +9,6 @@ use tokio::{
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::{
-    audio::process::ProcessCache,
     config::ConnectionMode,
     streamer::{CHECK_1, CHECK_2, StreamerMsg, WriteError},
 };
@@ -25,7 +24,6 @@ pub struct TcpStreamer {
     pub port: u16,
     pub state: TcpStreamerState,
     stream_config: AudioStream,
-    process_cache: ProcessCache,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -55,7 +53,6 @@ pub async fn new(
         port: addr.port(),
         stream_config,
         state: TcpStreamerState::Listening { listener },
-        process_cache: ProcessCache::new(),
     };
 
     Ok(streamer)
@@ -64,7 +61,6 @@ pub async fn new(
 impl StreamerTrait for TcpStreamer {
     fn reconfigure_stream(&mut self, stream_config: AudioStream) {
         self.stream_config = stream_config;
-        self.process_cache.clear();
     }
 
     fn status(&self) -> StreamerMsg {
@@ -136,10 +132,7 @@ impl StreamerTrait for TcpStreamer {
                             let buffer_size = packet.buffer.len();
                             let sample_rate = packet.sample_rate;
 
-                            match self
-                                .stream_config
-                                .process_audio_packet(packet, &mut self.process_cache)
-                            {
+                            match self.stream_config.process_audio_packet(packet) {
                                 Ok(Some(buffer)) => {
                                     debug!("received {} bytes", buffer_size);
                                     Ok(Some(StreamerMsg::UpdateAudioWave {

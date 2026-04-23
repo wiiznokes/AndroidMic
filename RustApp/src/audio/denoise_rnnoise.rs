@@ -1,3 +1,5 @@
+use std::sync::{LazyLock, Mutex};
+
 use nnnoiseless::DenoiseState;
 
 use crate::audio::chunked_ring_buffer::ChunkedRingBuffer;
@@ -9,11 +11,12 @@ pub struct DenoiseCache {
     denoisers: Vec<Box<DenoiseState<'static>>>,
 }
 
-pub fn process_denoise_rnnoise_f32_stream(
-    data: &[Vec<f32>],
-    cache: &mut Option<DenoiseCache>,
-) -> anyhow::Result<Vec<Vec<f32>>> {
-    if match cache {
+static DENOISE_CACHE: LazyLock<Mutex<Option<DenoiseCache>>> = LazyLock::new(|| Mutex::new(None));
+
+pub fn process_denoise_rnnoise_f32_stream(data: &[Vec<f32>]) -> anyhow::Result<Vec<Vec<f32>>> {
+    let mut cache = DENOISE_CACHE.lock().unwrap();
+
+    if match cache.as_ref() {
         Some(c) => data.len() != c.denoisers.len(),
         None => true,
     } {

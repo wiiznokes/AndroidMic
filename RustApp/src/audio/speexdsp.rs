@@ -1,3 +1,5 @@
+use std::sync::{LazyLock, Mutex};
+
 use speexdsp::preprocess::SpeexPreprocess;
 
 use crate::audio::{AudioProcessParams, chunked_ring_buffer::ChunkedRingBuffer};
@@ -24,6 +26,8 @@ pub struct SpeexdspCache {
 // safe because packets are processed in order, and not concurrently
 unsafe impl Send for SpeexdspCache {}
 
+static DENOISE_CACHE: LazyLock<Mutex<Option<SpeexdspCache>>> = LazyLock::new(|| Mutex::new(None));
+
 impl SpeexdspCache {
     fn is_config_changed(&self, config: &AudioProcessParams) -> bool {
         self.config_denoise_enabled != config.is_speex_denoise_enabled()
@@ -40,9 +44,10 @@ impl SpeexdspCache {
 pub fn process_speex_f32_stream(
     data: &[Vec<f32>],
     config: &AudioProcessParams,
-    cache: &mut Option<SpeexdspCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    if match cache {
+    let mut cache = DENOISE_CACHE.lock().unwrap();
+
+    if match cache.as_ref() {
         Some(c) => {
             if data.len() != c.denoisers.len() || c.is_config_changed(config) {
                 dbg!(data.len(), c.denoisers.len(), c.is_config_changed(config));

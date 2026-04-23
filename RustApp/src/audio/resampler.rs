@@ -1,3 +1,5 @@
+use std::sync::{LazyLock, Mutex};
+
 use rubato::{Indexing, Resampler};
 
 pub struct ResamplerCache {
@@ -10,17 +12,20 @@ pub struct ResamplerCache {
 
 const CHUNK_SIZE: usize = 1024;
 
+static RESAMPLER_CACHE: LazyLock<Mutex<Option<ResamplerCache>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 pub fn resample_f32_stream(
     data: &[Vec<f32>],
     input_sample_rate: usize,
     output_sample_rate: usize,
-    cache: &mut Option<ResamplerCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
     let input_len = data[0].len();
     let nb_channel = data.len();
 
-    if match cache {
+    let mut cache = RESAMPLER_CACHE.lock().unwrap();
+
+    if match cache.as_ref() {
         Some(c) => {
             c.input_rate != input_sample_rate
                 || c.output_rate != output_sample_rate

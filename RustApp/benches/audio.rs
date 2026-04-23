@@ -5,7 +5,7 @@ use android_mic::{
         AudioPacketFormat, AudioProcessParams,
         denoise_rnnoise::{self},
         player::process_audio,
-        process::{ProcessCache, convert_packet_to_f32},
+        process::convert_packet_to_f32,
         resampler::resample_f32_stream,
         speexdsp::process_speex_f32_stream,
     },
@@ -71,8 +71,6 @@ fn bench_process(c: &mut Criterion) {
 
     let mut audio_stream = AudioStream::new(producer, audio_params, false);
 
-    let mut cache = ProcessCache::new();
-
     c.bench_function("bench_process", |b| {
         b.iter(|| {
             let source = make_random(3840);
@@ -84,9 +82,7 @@ fn bench_process(c: &mut Criterion) {
                 audio_format: 2,
             };
 
-            audio_stream
-                .process_audio_packet(packet, &mut cache)
-                .unwrap();
+            audio_stream.process_audio_packet(packet).unwrap();
 
             let chunk = consumer.read_chunk(consumer.slots()).unwrap();
             chunk.commit_all();
@@ -106,11 +102,9 @@ fn bench_resampling(c: &mut Criterion) {
 
     let buffer = convert_packet_to_f32(&packet).unwrap();
 
-    let mut cache = None;
-
     c.bench_function("bench_resampling", |b| {
         b.iter(|| {
-            resample_f32_stream(&buffer, 44100, 48000, &mut cache).unwrap();
+            resample_f32_stream(&buffer, 44100, 48000).unwrap();
         });
     });
 }
@@ -145,11 +139,9 @@ fn bench_speexdsp(c: &mut Criterion) {
         speex_dereverb_level: 0.5,
     };
 
-    let mut cache = None;
-
     c.bench_function("bench_speexdsp", |b| {
         b.iter(|| {
-            process_speex_f32_stream(&buffer, &audio_params, &mut cache).unwrap();
+            process_speex_f32_stream(&buffer, &audio_params).unwrap();
         });
     });
 }
@@ -166,11 +158,9 @@ fn bench_rnnoise(c: &mut Criterion) {
 
     let buffer = convert_packet_to_f32(&packet).unwrap();
 
-    let mut cache = None;
-
     c.bench_function("bench_rnnoise", |b| {
         b.iter(|| {
-            denoise_rnnoise::process_denoise_rnnoise_f32_stream(&buffer, &mut cache).unwrap();
+            denoise_rnnoise::process_denoise_rnnoise_f32_stream(&buffer).unwrap();
         });
     });
 }

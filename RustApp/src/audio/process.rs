@@ -2,13 +2,12 @@ use std::borrow::Cow;
 
 use crate::{
     audio::{
-        denoise_rnnoise::{DENOISE_RNNOISE_SAMPLE_RATE, DenoiseCache},
+        denoise_rnnoise::DENOISE_RNNOISE_SAMPLE_RATE,
         postprocessing::{
             post_apply_echo, post_apply_flanger, post_apply_phaser, post_apply_pitch_shift,
             post_apply_popstar, post_apply_reverb, post_apply_vocoder, post_apply_walkie_talkie,
         },
-        resampler::{ResamplerCache},
-        speexdsp::{SPEEXDSP_SAMPLE_RATE, SpeexdspCache, process_speex_f32_stream},
+        speexdsp::{SPEEXDSP_SAMPLE_RATE, process_speex_f32_stream},
     },
     config::{AudioEffect, AudioFormat, DenoiseKind},
     streamer::{AudioPacketMessage, AudioStream},
@@ -18,28 +17,6 @@ use super::{
     AudioBytes, denoise_rnnoise::process_denoise_rnnoise_f32_stream, resampler::resample_f32_stream,
 };
 
-#[derive(Default)]
-pub struct ProcessCache {
-    resample_rnnoise_cache: Option<ResamplerCache>,
-    resample_speexdsp_cache: Option<ResamplerCache>,
-    resample_to_target: Option<ResamplerCache>,
-    speexdsp: Option<SpeexdspCache>,
-    denoise: Option<DenoiseCache>,
-}
-
-impl ProcessCache {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn clear(&mut self) {
-        self.resample_rnnoise_cache = None;
-        self.resample_speexdsp_cache = None;
-        self.resample_to_target = None;
-        self.speexdsp = None;
-        self.denoise = None;
-    }
-}
-
 impl AudioStream {
     /// This function converts an audio stream from packet into producer
     /// apply any necessary conversions based on the audio format
@@ -47,14 +24,13 @@ impl AudioStream {
     pub fn process_audio_packet(
         &mut self,
         packet: AudioPacketMessage,
-        cache: &mut ProcessCache,
     ) -> anyhow::Result<Option<Vec<f32>>> {
         match self.audio_params.target_format.audio_format {
-            AudioFormat::I16 => self.process_audio_packet_internal::<i16>(packet, cache),
-            AudioFormat::I24 => self.process_audio_packet_internal::<f32>(packet, cache),
-            AudioFormat::I32 => self.process_audio_packet_internal::<i32>(packet, cache),
-            AudioFormat::U8 => self.process_audio_packet_internal::<u8>(packet, cache),
-            AudioFormat::F32 => self.process_audio_packet_internal::<f32>(packet, cache),
+            AudioFormat::I16 => self.process_audio_packet_internal::<i16>(packet),
+            AudioFormat::I24 => self.process_audio_packet_internal::<f32>(packet),
+            AudioFormat::I32 => self.process_audio_packet_internal::<i32>(packet),
+            AudioFormat::U8 => self.process_audio_packet_internal::<u8>(packet),
+            AudioFormat::F32 => self.process_audio_packet_internal::<f32>(packet),
         }
         .map_err(|e| {
             warn!("failed to convert audio stream: {e}");
@@ -65,7 +41,6 @@ impl AudioStream {
     fn process_audio_packet_internal<F>(
         &mut self,
         packet: AudioPacketMessage,
-        cache: &mut ProcessCache,
     ) -> anyhow::Result<Option<Vec<f32>>>
     where
         F: cpal::SizedSample + AudioBytes + std::fmt::Debug + 'static,
@@ -88,15 +63,13 @@ impl AudioStream {
                                 &buffer,
                                 current_sample_rate as usize,
                                 DENOISE_RNNOISE_SAMPLE_RATE as usize,
-                                &mut cache.resample_rnnoise_cache,
                             )?;
                             current_sample_rate = DENOISE_RNNOISE_SAMPLE_RATE;
                             Cow::Owned(tmp)
                         };
 
                     // denoise the audio stream
-                    buffer =
-                        process_denoise_rnnoise_f32_stream(&prepared_buffer, &mut cache.denoise)?;
+                    buffer = process_denoise_rnnoise_f32_stream(&prepared_buffer)?;
                 }
                 DenoiseKind::Speexdsp => {}
             }
@@ -111,13 +84,12 @@ impl AudioStream {
                         &buffer,
                         current_sample_rate as usize,
                         SPEEXDSP_SAMPLE_RATE as usize,
-                        &mut cache.resample_speexdsp_cache,
                     )?;
                     current_sample_rate = SPEEXDSP_SAMPLE_RATE;
                     Cow::Owned(tmp)
                 };
 
-            buffer = process_speex_f32_stream(&prepared_buffer, config, &mut cache.speexdsp)?;
+            buffer = process_speex_f32_stream(&prepared_buffer, config)?;
         }
 
         buffer = if config.target_format.sample_rate.to_number() == current_sample_rate {
@@ -127,7 +99,6 @@ impl AudioStream {
                 &buffer,
                 current_sample_rate as usize,
                 config.target_format.sample_rate.to_number() as usize,
-                &mut cache.resample_to_target,
             )?
         };
 
