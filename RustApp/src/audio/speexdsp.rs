@@ -1,5 +1,3 @@
-use std::sync::{LazyLock, Mutex};
-
 use speexdsp::preprocess::SpeexPreprocess;
 
 use crate::audio::AudioProcessParams;
@@ -10,7 +8,7 @@ use crate::audio::AudioProcessParams;
 pub const SPEEXDSP_SAMPLE_RATE: u32 = 48000;
 const FRAME_SIZE: usize = (SPEEXDSP_SAMPLE_RATE as f32 * 0.02) as usize; // 20 ms frame
 
-struct SpeexdspCache {
+pub struct SpeexdspCache {
     sample_buffer: Vec<Vec<i16>>,
     denoisers: Vec<SpeexPreprocess>,
     config_denoise_enabled: bool,
@@ -22,6 +20,9 @@ struct SpeexdspCache {
     config_dereverb_enabled: bool,
     config_dereverb_level: f32,
 }
+
+// safe because packets are processed in order, and not concurrently
+unsafe impl Send for SpeexdspCache {}
 
 impl SpeexdspCache {
     fn is_config_changed(&self, config: &AudioProcessParams) -> bool {
@@ -36,23 +37,16 @@ impl SpeexdspCache {
     }
 }
 
-// safe because packets are processed in order, and not concurrently
-unsafe impl Send for SpeexdspCache {}
-
-// safe because packets are processed in order, and not concurrently
-static DENOISE_CACHE: LazyLock<Mutex<Option<SpeexdspCache>>> = LazyLock::new(|| Mutex::new(None));
-
 pub fn process_speex_f32_stream(
     data: &[Vec<f32>],
     config: &AudioProcessParams,
+    cache: &mut Option<SpeexdspCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    let mut denoise_cache = DENOISE_CACHE.lock().unwrap();
-
-    if denoise_cache.is_none()
-        || data.len() != denoise_cache.as_ref().unwrap().denoisers.len()
-        || denoise_cache.as_ref().unwrap().is_config_changed(config)
+    if cache.is_none()
+        || data.len() != cache.as_ref().unwrap().denoisers.len()
+        || cache.as_ref().unwrap().is_config_changed(config)
     {
-        *denoise_cache = Some(SpeexdspCache {
+        *cache = Some(SpeexdspCache {
             sample_buffer: vec![Vec::with_capacity(FRAME_SIZE); data.len()],
             denoisers: data
                 .iter()
@@ -86,7 +80,7 @@ pub fn process_speex_f32_stream(
         });
     }
 
-    let cache = denoise_cache.as_mut().unwrap();
+    let cache = cache.as_mut().unwrap();
     let mut output: Vec<Vec<f32>> = vec![Vec::new(); data.len()];
 
     // Convert f32 to i16

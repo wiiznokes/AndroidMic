@@ -8,7 +8,7 @@ use crate::{
             post_apply_popstar, post_apply_reverb, post_apply_vocoder, post_apply_walkie_talkie,
         },
         resampler::{ResamplerCache, resample_f32_stream_owned},
-        speexdsp::{SPEEXDSP_SAMPLE_RATE, process_speex_f32_stream},
+        speexdsp::{SPEEXDSP_SAMPLE_RATE, SpeexdspCache, process_speex_f32_stream},
     },
     config::{AudioEffect, AudioFormat, DenoiseKind},
     streamer::{AudioPacketMessage, AudioStream},
@@ -21,6 +21,7 @@ pub struct ProcessCache {
     resample_rnnoise_cache: Option<ResamplerCache>,
     resample_speexdsp_cache: Option<ResamplerCache>,
     resample_to_target: Option<ResamplerCache>,
+    speexdsp: Option<SpeexdspCache>,
 }
 
 impl ProcessCache {
@@ -31,6 +32,7 @@ impl ProcessCache {
         self.resample_rnnoise_cache = None;
         self.resample_speexdsp_cache = None;
         self.resample_to_target = None;
+        self.speexdsp = None;
     }
 }
 
@@ -110,7 +112,7 @@ impl AudioStream {
                     Cow::Borrowed(tmp)
                 };
 
-            buffer = process_speex_f32_stream(&prepared_buffer, config)?;
+            buffer = process_speex_f32_stream(&prepared_buffer, config, &mut cache.speexdsp)?;
         }
 
         buffer = if config.target_format.sample_rate.to_number() == current_sample_rate {

@@ -145,8 +145,10 @@ fn bench_speexdsp(c: &mut Criterion) {
             speex_dereverb_level: 0.5,
         };
 
+        let mut cache = None;
+
         b.iter(|| {
-            process_speex_f32_stream(&buffer, &audio_params).unwrap();
+            process_speex_f32_stream(&buffer, &audio_params, &mut cache).unwrap();
         });
     });
 }
