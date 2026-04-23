@@ -119,12 +119,17 @@ tray-icon = "0.22"
 
 
 [dev-dependencies]
-criterion = "0.8"
+criterion = "0.5"
 rand = "0.10"
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 
 [[bench]]
 name = "audio"
 harness = false
+
+[profile.bench]
+debug = true
+
 
 # [patch."https://github.com/pop-os/libcosmic.git"]
 # libcosmic = { path = "../../libcosmic" }
