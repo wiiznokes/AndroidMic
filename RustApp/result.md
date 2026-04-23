@@ -42,8 +42,8 @@ bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 - [ ] test ringbuffer instead of rtrb
 - [ ] add optimization flag when vendoring speexdsp
 - [ ] test other audio backend
-- [ ] speexdsp
-- [ ] rnnoise
+- [x] speexdsp
+- [x] rnnoise
 
 - https://crates.io/crates/ringbuf
 - https://crates.io/crates/ringbuffer

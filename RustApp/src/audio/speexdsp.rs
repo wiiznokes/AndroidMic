@@ -110,12 +110,8 @@ pub fn process_speex_f32_stream(
 
             let chunk = ring_buffer.first_chunk_mut();
 
-            match cache.denoisers[channel_idx].preprocess_run(chunk) {
-                0 => {
-                    chunk.fill(0);
-                }
-                1 => {}
-                _ => panic!(),
+            if !cache.denoisers[channel_idx].preprocess_run(chunk) {
+                chunk.fill(0);
             }
 
             // Scale back to -1.0 to 1.0 range
