@@ -13,7 +13,10 @@ pub fn process_denoise_rnnoise_f32_stream(
     data: &[Vec<f32>],
     cache: &mut Option<DenoiseCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    if cache.is_none() || data.len() != cache.as_ref().unwrap().denoisers.len() {
+    if match cache {
+        Some(c) => data.len() != c.denoisers.len(),
+        None => true,
+    } {
         *cache = Some(DenoiseCache {
             sample_buffer: vec![
                 ChunkedRingBuffer::new(

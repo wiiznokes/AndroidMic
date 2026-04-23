@@ -42,10 +42,16 @@ pub fn process_speex_f32_stream(
     config: &AudioProcessParams,
     cache: &mut Option<SpeexdspCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    if cache.is_none()
-        || data.len() != cache.as_ref().unwrap().denoisers.len()
-        || cache.as_ref().unwrap().is_config_changed(config)
-    {
+    if match cache {
+        Some(c) => {
+            if data.len() != c.denoisers.len() || c.is_config_changed(config) {
+                dbg!(data.len(), c.denoisers.len(), c.is_config_changed(config));
+            }
+
+            data.len() != c.denoisers.len() || c.is_config_changed(config)
+        }
+        None => true,
+    } {
         *cache = Some(SpeexdspCache {
             sample_buffer: vec![
                 ChunkedRingBuffer::new((data[0].len() / FRAME_SIZE) + 1, FRAME_SIZE);

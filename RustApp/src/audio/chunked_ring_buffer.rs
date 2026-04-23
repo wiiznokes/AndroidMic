@@ -50,7 +50,7 @@ impl<T> ChunkedRingBuffer<T> {
         let old_len = self.len();
         let old_cap = self.cap;
 
-        let min_cap = ((min_cap + self.chunk_size - 1) / self.chunk_size) * self.chunk_size;
+        let min_cap = min_cap.div_ceil(self.chunk_size) * self.chunk_size;
         let new_cap = max(self.cap * 2, min_cap);
 
         let mut new_v = Vec::with_capacity(new_cap);
