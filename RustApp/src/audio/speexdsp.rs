@@ -1,6 +1,6 @@
 use speexdsp::preprocess::SpeexPreprocess;
 
-use crate::audio::AudioProcessParams;
+use crate::audio::{AudioProcessParams, chunked_ring_buffer::ChunkedRingBuffer};
 
 // xxx: do we really need to change the sample rate ?
 // apparently, speexdsp is optimized for low sample rate (8000, 16000), according to chatgpt,
@@ -9,7 +9,7 @@ pub const SPEEXDSP_SAMPLE_RATE: u32 = 48000;
 const FRAME_SIZE: usize = (SPEEXDSP_SAMPLE_RATE as f32 * 0.02) as usize; // 20 ms frame
 
 pub struct SpeexdspCache {
-    sample_buffer: Vec<Vec<i16>>,
+    sample_buffer: Vec<ChunkedRingBuffer<i16>>,
     denoisers: Vec<SpeexPreprocess>,
     config_denoise_enabled: bool,
     config_noise_suppress: i32,
@@ -47,7 +47,10 @@ pub fn process_speex_f32_stream(
         || cache.as_ref().unwrap().is_config_changed(config)
     {
         *cache = Some(SpeexdspCache {
-            sample_buffer: vec![Vec::with_capacity(FRAME_SIZE); data.len()],
+            sample_buffer: vec![
+                ChunkedRingBuffer::new((data[0].len() / FRAME_SIZE) + 1, FRAME_SIZE);
+                data.len()
+            ],
             denoisers: data
                 .iter()
                 .map(|_| {
@@ -96,16 +99,18 @@ pub fn process_speex_f32_stream(
 
     // Append new data into the cache
     for channel_idx in 0..data_i16.len() {
-        cache.sample_buffer[channel_idx].extend_from_slice(&data_i16[channel_idx]);
+        cache.sample_buffer[channel_idx].extend(&data_i16[channel_idx]);
     }
 
-    while cache.sample_buffer[0].len() >= FRAME_SIZE {
+    while cache.sample_buffer[0].has_chunk_available() {
         for channel_idx in 0..data.len() {
-            match cache.denoisers[channel_idx]
-                .preprocess_run(&mut cache.sample_buffer[channel_idx][0..FRAME_SIZE])
-            {
+            let view = &mut cache.sample_buffer[channel_idx];
+
+            let part1 = view.first_chunk_mut();
+
+            match cache.denoisers[channel_idx].preprocess_run(part1) {
                 0 => {
-                    cache.sample_buffer[channel_idx][0..FRAME_SIZE].fill(0);
+                    part1.fill(0);
                 }
                 1 => {}
                 _ => panic!(),
@@ -113,16 +118,13 @@ pub fn process_speex_f32_stream(
 
             // Scale back to -1.0 to 1.0 range
             output[channel_idx].extend_from_slice(
-                &cache.sample_buffer[channel_idx][0..FRAME_SIZE]
+                &part1
                     .iter()
                     .map(|&x| x as f32 / i16::MAX as f32)
                     .collect::<Vec<f32>>(),
             );
-        }
 
-        // Clear the sample buffer for the next round
-        for channel in &mut cache.sample_buffer {
-            channel.drain(0..FRAME_SIZE);
+            view.remove_first_chunk();
         }
     }
 

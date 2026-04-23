@@ -38,11 +38,12 @@ bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 
 ## Opti plan
 
+- [x] writting to the ring buff
 - [ ] test ringbuffer instead of rtrb
 - [ ] add optimization flag when vendoring speexdsp
+- [ ] test other audio backend
 - [ ] speexdsp
 - [ ] rnnoise
-- [ ] writting to the ring buff
 
 - https://crates.io/crates/ringbuf
 - https://crates.io/crates/ringbuffer

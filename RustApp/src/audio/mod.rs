@@ -8,6 +8,7 @@ use crate::{
     ui::app::{AppState, Stream},
 };
 
+mod chunked_ring_buffer;
 pub mod denoise_rnnoise;
 pub mod player;
 mod postprocessing;
