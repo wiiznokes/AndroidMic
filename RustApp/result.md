@@ -33,3 +33,8 @@ bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 - [ ] speexdsp
 - [ ] rnnoise
 - [ ] writting to the ring buff
+
+
+- https://crates.io/crates/ringbuf
+- https://crates.io/crates/ringbuffer
+- https://crates.io/crates/rtrb
