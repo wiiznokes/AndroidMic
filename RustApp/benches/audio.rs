@@ -3,6 +3,7 @@ use std::io::Write;
 use android_mic::{
     audio::{
         AudioPacketFormat, AudioProcessParams,
+        denoise_rnnoise::{self},
         player::process_audio,
         process::{ProcessCache, convert_packet_to_f32},
         resampler::resample_f32_stream,
@@ -149,6 +150,27 @@ fn bench_speexdsp(c: &mut Criterion) {
 
         b.iter(|| {
             process_speex_f32_stream(&buffer, &audio_params, &mut cache).unwrap();
+        });
+    });
+}
+
+fn bench_rnnoise(c: &mut Criterion) {
+    c.bench_function("bench_rnnoise", |b| {
+        let source = make_random(3840);
+
+        let packet = AudioPacketMessage {
+            buffer: source,
+            sample_rate: 48000,
+            channel_count: 1,
+            audio_format: 2,
+        };
+
+        let buffer = convert_packet_to_f32(&packet).unwrap();
+
+        let mut cache = None;
+
+        b.iter(|| {
+            denoise_rnnoise::process_denoise_rnnoise_f32_stream(&buffer, &mut cache).unwrap();
         });
     });
 }
