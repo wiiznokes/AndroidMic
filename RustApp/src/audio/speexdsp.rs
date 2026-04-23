@@ -106,9 +106,9 @@ pub fn process_speex_f32_stream(
 
     while cache.sample_buffer[0].has_chunk_available() {
         for channel_idx in 0..data.len() {
-            let view = &mut cache.sample_buffer[channel_idx];
+            let ring_buffer = &mut cache.sample_buffer[channel_idx];
 
-            let chunk = view.first_chunk_mut();
+            let chunk = ring_buffer.first_chunk_mut();
 
             match cache.denoisers[channel_idx].preprocess_run(chunk) {
                 0 => {
@@ -126,7 +126,7 @@ pub fn process_speex_f32_stream(
                     .collect::<Vec<f32>>(),
             );
 
-            view.remove_first_chunk();
+            ring_buffer.remove_first_chunk();
         }
     }
 

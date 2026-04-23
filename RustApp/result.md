@@ -48,3 +48,13 @@ bench_process time: [160.59 µs 162.31 µs 164.43 µs]
 - https://crates.io/crates/ringbuf
 - https://crates.io/crates/ringbuffer
 - https://crates.io/crates/rtrb
+
+## For rnnoise
+
+# Windows, Master, without the processing
+
+bench_rnnoise time: [1.3651 µs 1.3685 µs 1.3728 µs]
+
+# Windows, with ringbuff opti, without the processing
+
+bench_rnnoise time: [1.0802 µs 1.0907 µs 1.1036 µs]
