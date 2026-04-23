@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::{
     audio::{
-        denoise_rnnoise::DENOISE_RNNOISE_SAMPLE_RATE,
+        denoise_rnnoise::{DENOISE_RNNOISE_SAMPLE_RATE, DenoiseCache},
         postprocessing::{
             post_apply_echo, post_apply_flanger, post_apply_phaser, post_apply_pitch_shift,
             post_apply_popstar, post_apply_reverb, post_apply_vocoder, post_apply_walkie_talkie,
@@ -14,7 +14,9 @@ use crate::{
     streamer::{AudioPacketMessage, AudioStream},
 };
 
-use super::{AudioBytes, denoise_rnnoise::denoise_f32_stream, resampler::resample_f32_stream};
+use super::{
+    AudioBytes, denoise_rnnoise::process_denoise_rnnoise_f32_stream, resampler::resample_f32_stream,
+};
 
 #[derive(Default)]
 pub struct ProcessCache {
@@ -22,6 +24,7 @@ pub struct ProcessCache {
     resample_speexdsp_cache: Option<ResamplerCache>,
     resample_to_target: Option<ResamplerCache>,
     speexdsp: Option<SpeexdspCache>,
+    denoise: Option<DenoiseCache>,
 }
 
 impl ProcessCache {
@@ -33,6 +36,7 @@ impl ProcessCache {
         self.resample_speexdsp_cache = None;
         self.resample_to_target = None;
         self.speexdsp = None;
+        self.denoise = None;
     }
 }
 
@@ -91,7 +95,8 @@ impl AudioStream {
                         };
 
                     // denoise the audio stream
-                    buffer = denoise_f32_stream(&prepared_buffer)?;
+                    buffer =
+                        process_denoise_rnnoise_f32_stream(&prepared_buffer, &mut cache.denoise)?;
                 }
                 DenoiseKind::Speexdsp => {}
             }

@@ -1,27 +1,24 @@
-use std::sync::{LazyLock, Mutex};
-
 use nnnoiseless::DenoiseState;
 
 pub const DENOISE_RNNOISE_SAMPLE_RATE: u32 = 48000;
 
-struct DenoiseCache {
+pub struct DenoiseCache {
     sample_buffer: Vec<Vec<f32>>,
     denoisers: Vec<Box<DenoiseState<'static>>>,
 }
 
-static DENOISE_CACHE: LazyLock<Mutex<Option<DenoiseCache>>> = LazyLock::new(|| Mutex::new(None));
-
-pub fn denoise_f32_stream(data: &[Vec<f32>]) -> anyhow::Result<Vec<Vec<f32>>> {
-    let mut denoise_cache = DENOISE_CACHE.lock().unwrap();
-
-    if denoise_cache.is_none() || data.len() != denoise_cache.as_ref().unwrap().denoisers.len() {
-        *denoise_cache = Some(DenoiseCache {
+pub fn process_denoise_rnnoise_f32_stream(
+    data: &[Vec<f32>],
+    cache: &mut Option<DenoiseCache>,
+) -> anyhow::Result<Vec<Vec<f32>>> {
+    if cache.is_none() || data.len() != cache.as_ref().unwrap().denoisers.len() {
+        *cache = Some(DenoiseCache {
             sample_buffer: vec![Vec::with_capacity(DenoiseState::FRAME_SIZE); data.len()],
             denoisers: vec![DenoiseState::new(); data.len()],
         });
     }
 
-    let cache = denoise_cache.as_mut().unwrap();
+    let cache = cache.as_mut().unwrap();
     let mut output: Vec<Vec<f32>> = vec![Vec::new(); data.len()];
     let mut output_buffer_i16 = [0.0; DenoiseState::FRAME_SIZE];
 
