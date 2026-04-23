@@ -108,11 +108,11 @@ pub fn process_speex_f32_stream(
         for channel_idx in 0..data.len() {
             let view = &mut cache.sample_buffer[channel_idx];
 
-            let part1 = view.first_chunk_mut();
+            let chunk = view.first_chunk_mut();
 
-            match cache.denoisers[channel_idx].preprocess_run(part1) {
+            match cache.denoisers[channel_idx].preprocess_run(chunk) {
                 0 => {
-                    part1.fill(0);
+                    chunk.fill(0);
                 }
                 1 => {}
                 _ => panic!(),
@@ -120,7 +120,7 @@ pub fn process_speex_f32_stream(
 
             // Scale back to -1.0 to 1.0 range
             output[channel_idx].extend_from_slice(
-                &part1
+                &chunk
                     .iter()
                     .map(|&x| x as f32 / i16::MAX as f32)
                     .collect::<Vec<f32>>(),
