@@ -84,7 +84,6 @@ pub fn process_speex_f32_stream(
     }
 
     let cache = cache.as_mut().unwrap();
-    let mut output: Vec<Vec<f32>> = vec![Vec::new(); data.len()];
 
     // Convert f32 to i16
     let data_i16: Vec<Vec<i16>> = data
@@ -101,6 +100,9 @@ pub fn process_speex_f32_stream(
     for channel_idx in 0..data_i16.len() {
         cache.sample_buffer[channel_idx].extend(&data_i16[channel_idx]);
     }
+
+    let mut output: Vec<Vec<f32>> =
+        vec![Vec::with_capacity(cache.sample_buffer[0].number_of_chunk() * FRAME_SIZE); data.len()];
 
     while cache.sample_buffer[0].has_chunk_available() {
         for channel_idx in 0..data.len() {
