@@ -6,33 +6,17 @@ pub struct ResamplerCache {
     nb_channels: usize,
     unprocessed_buffer: Vec<Vec<f32>>,
     resampler: rubato::Fft<f32>,
-    result: Vec<Vec<f32>>,
 }
 
 const CHUNK_SIZE: usize = 1024;
 
-pub fn resample_f32_stream_owned(
+
+pub fn resample_f32_stream(
     data: &[Vec<f32>],
     input_sample_rate: usize,
     output_sample_rate: usize,
     cache: &mut Option<ResamplerCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
-    resample_f32_stream(data, input_sample_rate, output_sample_rate, cache)?;
-
-    let cache = cache.as_mut().unwrap();
-
-    Ok(std::mem::replace(
-        &mut cache.result,
-        vec![Vec::new(); cache.nb_channels],
-    ))
-}
-
-pub fn resample_f32_stream<'a>(
-    data: &[Vec<f32>],
-    input_sample_rate: usize,
-    output_sample_rate: usize,
-    cache: &'a mut Option<ResamplerCache>,
-) -> anyhow::Result<&'a mut [Vec<f32>]> {
     let input_len = data[0].len();
     let nb_channel = data.len();
 
@@ -59,9 +43,10 @@ pub fn resample_f32_stream<'a>(
             nb_channels: nb_channel,
             unprocessed_buffer: vec![Vec::with_capacity(resampler.input_frames_max()); nb_channel],
             resampler,
-            result: vec![Vec::new(); nb_channel],
         });
     };
+
+    let mut result = vec![Vec::new(); nb_channel];
 
     let cache = cache.as_mut().unwrap();
     let ResamplerCache {
@@ -78,7 +63,7 @@ pub fn resample_f32_stream<'a>(
         max_output_frames * estimated_chunks
     };
 
-    for v in &mut cache.result {
+    for v in &mut result {
         if v.capacity() < output_len {
             v.reserve_exact(output_len - v.len());
         }
@@ -89,7 +74,7 @@ pub fn resample_f32_stream<'a>(
     }
 
     let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
-        &mut cache.result,
+        &mut result,
         nb_channel,
         output_len,
     )
@@ -130,7 +115,7 @@ pub fn resample_f32_stream<'a>(
     // workarround for the lifetime issue
     // because in process_into_buffer, buffer_out and buffer_in must have the same lifetime.
     let mut buffer_out = rubato::audioadapter_buffers::direct::SequentialSliceOfVecs::new_mut(
-        &mut cache.result,
+        &mut result,
         nb_channel,
         output_len,
     )
@@ -163,9 +148,9 @@ pub fn resample_f32_stream<'a>(
         unprocessed_buffer.extend_from_slice(&chunk[input_offset..]);
     }
 
-    for channel in &mut cache.result {
+    for channel in &mut result {
         channel.truncate(output_offset);
     }
 
-    Ok(&mut cache.result)
+    Ok(result)
 }

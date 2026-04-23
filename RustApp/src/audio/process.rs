@@ -7,7 +7,7 @@ use crate::{
             post_apply_echo, post_apply_flanger, post_apply_phaser, post_apply_pitch_shift,
             post_apply_popstar, post_apply_reverb, post_apply_vocoder, post_apply_walkie_talkie,
         },
-        resampler::{ResamplerCache, resample_f32_stream_owned},
+        resampler::{ResamplerCache},
         speexdsp::{SPEEXDSP_SAMPLE_RATE, SpeexdspCache, process_speex_f32_stream},
     },
     config::{AudioEffect, AudioFormat, DenoiseKind},
@@ -91,7 +91,7 @@ impl AudioStream {
                                 &mut cache.resample_rnnoise_cache,
                             )?;
                             current_sample_rate = DENOISE_RNNOISE_SAMPLE_RATE;
-                            Cow::Borrowed(tmp)
+                            Cow::Owned(tmp)
                         };
 
                     // denoise the audio stream
@@ -114,7 +114,7 @@ impl AudioStream {
                         &mut cache.resample_speexdsp_cache,
                     )?;
                     current_sample_rate = SPEEXDSP_SAMPLE_RATE;
-                    Cow::Borrowed(tmp)
+                    Cow::Owned(tmp)
                 };
 
             buffer = process_speex_f32_stream(&prepared_buffer, config, &mut cache.speexdsp)?;
@@ -123,7 +123,7 @@ impl AudioStream {
         buffer = if config.target_format.sample_rate.to_number() == current_sample_rate {
             buffer
         } else {
-            resample_f32_stream_owned(
+            resample_f32_stream(
                 &buffer,
                 current_sample_rate as usize,
                 config.target_format.sample_rate.to_number() as usize,
