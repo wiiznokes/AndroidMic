@@ -7144,7 +7144,7 @@ dependencies = [
 [[package]]
 name = "speexdsp"
 version = "0.1.1"
-source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=add-sse-opti#2f8778b7ad994dc8b6dd1720910021ef57231916"
+source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=helper-for-preprocess_ctl#d28bb69f50976684519fa1fc5c95ad964decc2cd"
 dependencies = [
  "speexdsp-resampler",
  "speexdsp-sys",
@@ -7153,7 +7153,7 @@ dependencies = [
 [[package]]
 name = "speexdsp-resampler"
 version = "0.1.0"
-source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=add-sse-opti#2f8778b7ad994dc8b6dd1720910021ef57231916"
+source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=helper-for-preprocess_ctl#d28bb69f50976684519fa1fc5c95ad964decc2cd"
 dependencies = [
  "cfg-if",
 ]
@@ -7161,7 +7161,7 @@ dependencies = [
 [[package]]
 name = "speexdsp-sys"
 version = "0.1.2"
-source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=add-sse-opti#2f8778b7ad994dc8b6dd1720910021ef57231916"
+source = "git+https://github.com/wiiznokes/speexdsp-rs-fork?branch=helper-for-preprocess_ctl#d28bb69f50976684519fa1fc5c95ad964decc2cd"
 dependencies = [
  "bindgen",
  "cc",
