@@ -175,11 +175,24 @@ fn bench_rnnoise(c: &mut Criterion) {
     });
 }
 
+#[cfg(not(target_os = "linux"))]
+criterion_group!(
+    benches,
+    bench_player,
+    bench_process,
+    bench_resampling,
+    bench_speexdsp,
+    bench_rnnoise,
+);
+
+#[cfg(target_os = "linux")]
 use pprof::criterion::{Output, PProfProfiler};
 
+#[cfg(target_os = "linux")]
 criterion_group!(
     name = benches;
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
     targets = bench_player, bench_process, bench_resampling, bench_speexdsp, bench_rnnoise,
 );
+
 criterion_main!(benches);
