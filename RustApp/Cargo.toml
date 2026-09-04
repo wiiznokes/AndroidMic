@@ -36,7 +36,6 @@ excluded_libraries = [
     "libpipewire*",
     "libasound*",
     "libpulse*",
-    "libpulse-simple*",
     "libjack*",
     "libspa-*"
 ]
