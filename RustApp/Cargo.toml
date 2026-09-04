@@ -32,7 +32,14 @@ entitlements = "res/macos/entitlements.plist"
 info_plist_path = "res/macos/Info.plist"
 
 [package.metadata.packager.appimage]
-excluded_libraries = ["libpipewire*"]
+excluded_libraries = [
+    "libpipewire*",
+    "libasound*",
+    "libpulse*",
+    "libpulse-simple*",
+    "libjack*",
+    "libspa-*"
+]
 
 [lints.rust]
 dead_code = "allow"
