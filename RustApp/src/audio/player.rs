@@ -18,7 +18,7 @@ pub fn create_audio_stream(
     // check if config is supported by device
     let supported_configs = device.supported_output_configs()?;
 
-    let mut supported = false;
+    let mut matched_config = None;
     for supported_config in supported_configs {
         if audio_format == supported_config.sample_format()
             && supported_config.max_sample_rate() >= sample_rate
@@ -33,21 +33,21 @@ pub fn create_audio_stream(
                 );
                 channel_count = supported_config.channels();
             }
-            supported = true;
+            matched_config = Some(supported_config);
             break;
         }
     }
 
-    if !supported {
+    let Some(matched_config) = matched_config else {
         bail!(
             "Unsupported output audio format or sample rate. Please apply recommended format from settings page."
         );
-    }
+    };
 
     let config = cpal::StreamConfig {
         channels: channel_count,
         sample_rate,
-        buffer_size: cpal::BufferSize::Default,
+        buffer_size: preferred_buffer_size(&matched_config),
     };
 
     // create stream config
@@ -67,6 +67,16 @@ pub fn create_audio_stream(
     };
 
     Ok((stream, config))
+}
+
+fn preferred_buffer_size(supported_config: &cpal::SupportedStreamConfigRange) -> cpal::BufferSize {
+    const PREFERRED_FRAMES: u32 = 256;
+
+    if let cpal::SupportedBufferSize::Range { min, max } = supported_config.buffer_size() {
+        return cpal::BufferSize::Fixed(PREFERRED_FRAMES.clamp(*min, *max));
+    }
+
+    cpal::BufferSize::Default
 }
 
 pub fn process_audio<F>(data: &mut [F], consumer: &mut Consumer<u8>, frame_bytes: usize)
