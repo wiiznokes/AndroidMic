@@ -32,7 +32,13 @@ entitlements = "res/macos/entitlements.plist"
 info_plist_path = "res/macos/Info.plist"
 
 [package.metadata.packager.appimage]
-excluded_libraries = ["libpipewire*"]
+excluded_libraries = [
+    "libpipewire*",
+    "libasound*",
+    "libpulse*",
+    "libjack*",
+    "libspa-*"
+]
 
 [lints.rust]
 dead_code = "allow"
@@ -49,7 +55,7 @@ adb = []
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 # linux: alsa will probably be included as a fallback ?
-cpal = { version = "0.18.1", features = ["jack", "pipewire", "pulseaudio"] }
+cpal = { version = "0.18.2", features = ["jack", "pipewire", "pulseaudio"] }
 rtrb = "0.3"
 local-ip-address = "0.6"
 log = "0.4"

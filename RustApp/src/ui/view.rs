@@ -447,7 +447,7 @@ pub fn settings_window(app: &AppState) -> Element<'_, ConfigMsg> {
                                     config.amplify_value,
                                     ConfigMsg::AmplifyValue,
                                 )
-                                .step(0.1),
+                                .step(0.1_f32),
                             )
                     })),
             )
@@ -475,7 +475,7 @@ pub fn settings_window(app: &AppState) -> Element<'_, ConfigMsg> {
                                     config.speex_dereverb_level,
                                     ConfigMsg::SpeexDereverbLevel,
                                 )
-                                .step(0.1),
+                                .step(0.1_f32),
                             )
                     })),
             )
