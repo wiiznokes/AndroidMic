@@ -8,6 +8,7 @@
 <!-- <a href="https://flathub.org/apps/io.github.teamclouday.AndroidMic"><img align=center height="40" src="https://flathub.org/assets/badges/flathub-badge-en.svg"  alt="Download on Flathub"/></a> -->
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/teamclouday/AndroidMic.svg?logo=github&label=GitHub&cacheSeconds=3600)](https://github.com/teamclouday/AndroidMic/releases/latest)
 [![F-Droid](https://img.shields.io/f-droid/v/io.github.teamclouday.AndroidMic?logo=f-droid&label=F-Droid&cacheSeconds=3600)](https://f-droid.org/packages/io.github.teamclouday.AndroidMic)
+[![Nixpkgs package](https://img.shields.io/badge/Nixpkgs-android--mic-blue?logo=nixos&logoColor=white)](https://search.nixos.org/packages?channel=unstable&show=android-mic)
 
 ---
 
@@ -62,6 +63,7 @@ Follow the instructions above for your operating system to install a virtual aud
 
 1. **Download and install**
    - Get the latest release from the [releases page](https://github.com/teamclouday/AndroidMic/releases/latest)
+   - **Nix / NixOS**: Run `nix run nixpkgs#android-mic` or add `pkgs.android-mic` to your configuration
    - Install and launch the app
 
    > **macOS users**: You may need to run this command to allow the app to run:
