@@ -120,7 +120,7 @@ Follow the instructions above for your operating system to install a virtual aud
    - Start recording
    - Connect to PC:
      - **TCP/UDP**: Enter PC IP address and port (shown in PC app log)
-     - **USB ADB**: Just click connect
+     - **USB ADB**: Enter port number (shown in PC app log)
      - **USB Serial**: Allow accessory mode when prompted
 
 ---
