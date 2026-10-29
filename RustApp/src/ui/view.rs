@@ -131,7 +131,7 @@ fn audio(app: &AppState) -> Element<'_, AppMsg> {
                             AppMsg::SelectedHost,
                         )
                         .width(Length::Fill),
-                        selected_host.as_ref().map_or("None", |host| &host.name()),
+                        selected_host.as_ref().map_or("None", |host| host.name()),
                         tooltip::Position::Top,
                     )
                     .class(cosmic::theme::Container::Tooltip),
@@ -148,8 +148,10 @@ fn audio(app: &AppState) -> Element<'_, AppMsg> {
                 .spacing(5)
                 .push(
                     tooltip(
-                        pick_list(app.audio_devices.clone(), selected_device, AppMsg::Device)
-                            .width(Length::Fill),
+                        pick_list(app.audio_devices.clone(), selected_device, |d| {
+                            AppMsg::Device(Box::new(d))
+                        })
+                        .width(Length::Fill),
                         selected_device
                             .as_ref()
                             .map_or("None", |device| &device.name),

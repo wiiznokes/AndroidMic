@@ -2,12 +2,10 @@
 
 ## Deps
 
-on Linux, you need alsa dev dep
-
 Fedora
 
 ```shell
-sudo dnf install alsa-lib-devel jack-audio-connection-kit-devel
+sudo dnf install alsa-lib-devel jack-audio-connection-kit-devel clang pipewire-devel libxkbcommon-devel protobuf-compiler
 ```
 
 Debian

@@ -48,7 +48,6 @@ pub fn resample_f32_stream<'a>(
             input_sample_rate,
             output_sample_rate,
             CHUNK_SIZE,
-            1,
             nb_channel,
             rubato::FixedSync::Both,
         )?;

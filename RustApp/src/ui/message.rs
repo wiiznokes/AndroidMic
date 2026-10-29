@@ -13,7 +13,7 @@ use crate::{
 pub enum AppMsg {
     ChangeConnectionMode(ConnectionMode),
     Streamer(StreamerMsg),
-    Device(AudioDevice),
+    Device(Box<AudioDevice>),
     #[cfg(target_os = "linux")]
     SelectedHost(HostId),
     Adapter(NetworkAdapter),
